@@ -24,11 +24,11 @@ export function SelectedPanel() {
   const f = fleet[selected.id];
 
   return (
-    <div className="pointer-events-auto flex items-center gap-5 rounded-ui border border-rule bg-surface px-4 py-3">
-      <Icon size={22} strokeWidth={1.6} />
-      <div className="min-w-[220px]">
+    <div className="pointer-events-auto flex w-full max-w-xl items-center gap-3 rounded-ui border border-rule bg-surface px-3 py-3 sm:gap-5 sm:px-4">
+      <span className="shrink-0"><Icon size={22} strokeWidth={1.6} /></span>
+      <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold">{selected.label}</div>
-        <div className="text-xs text-ink/60">{DESC[selected.type]}</div>
+        <div className="hidden text-xs text-ink/60 sm:block">{DESC[selected.type]}</div>
         {f && (
           <div className="mt-1 text-xs text-ink/60">
             Baterai {Math.round(f.battery)}% · <span className={f.status === "charging" ? "text-warn" : "text-ok"}>{f.status === "charging" ? "Charging" : "Active"}</span>
@@ -36,17 +36,17 @@ export function SelectedPanel() {
         )}
       </div>
       {left > 0 ? (
-        <div className="text-xs text-ink/70"><span className="font-semibold text-ink">Boost 2×</span> aktif · {left}s</div>
+        <div className="shrink-0 text-xs text-ink/70"><span className="font-semibold text-ink">Boost 2×</span> aktif · {left}s</div>
       ) : (
         <button
           disabled={coins < BOOST_COST}
           onClick={() => boost(selected.id)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ui bg-accent px-3 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Zap size={13} fill="currentColor" /> Boost 2× · {BOOST_COST} coins
         </button>
       )}
-      <button onClick={() => select(null)} className="text-ink/45 transition-colors duration-150 hover:text-ink" aria-label="Tutup"><X size={16} /></button>
+      <button onClick={() => select(null)} className="shrink-0 p-1 text-ink/45 transition-colors duration-150 hover:text-ink" aria-label="Tutup"><X size={16} /></button>
     </div>
   );
 }

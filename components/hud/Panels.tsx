@@ -34,7 +34,7 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
   );
 }
 
-function Kpis() {
+export function Kpis() {
   const { ordersToday, shipped, series, fleet, zones } = useStore();
   const per = Math.round(series[series.length - 1] * 2.4);
   const active = Object.values(fleet).filter((f) => f.status === "active").length;
@@ -51,7 +51,7 @@ function Kpis() {
   );
 }
 
-function Throughput() {
+export function Throughput() {
   const series = useStore((s) => s.series);
   const W = 260, H = 72;
   const pts = series.map((v, i) => `${i ? "L" : "M"}${((i / (series.length - 1)) * W).toFixed(1)},${(H - (v / 100) * H).toFixed(1)}`).join(" ");
@@ -65,7 +65,7 @@ function Throughput() {
   );
 }
 
-function Zones() {
+export function Zones() {
   const zones = useStore((s) => s.zones);
   return (
     <Section title="Kapasitas zona">
@@ -83,7 +83,7 @@ function Zones() {
 
 const STATUS_CLASS = { Picking: "text-ink/60", Packed: "text-ink", Shipped: "text-ok" } as const;
 
-function Orders() {
+export function Orders() {
   const orders = useStore((s) => s.orders);
   return (
     <Section title="Antrian order">
@@ -103,7 +103,7 @@ function Orders() {
   );
 }
 
-function Missions() {
+export function Missions() {
   const { missions, counters, claim } = useStore();
   const achievements = [
     { n: "First Truck", ok: counters.trucks >= 1 },
@@ -147,7 +147,7 @@ function Missions() {
   );
 }
 
-function Fleet() {
+export function Fleet() {
   const { fleet, select, selected, boosts } = useStore();
   return (
     <Section title="Armada" aside="Klik baris untuk memilih">
@@ -180,7 +180,7 @@ function Fleet() {
 
 const KIND_CLASS = { info: "", success: "", warn: "text-warn", level: "font-semibold" } as const;
 
-function Activity() {
+export function Activity() {
   const events = useStore((s) => s.events);
   return (
     <Section title="Aktivitas">
@@ -197,13 +197,21 @@ function Activity() {
   );
 }
 
-export function LeftColumn() {
+export function OverviewPanels() {
   return (
-    <aside className="scroll-thin hidden w-[300px] shrink-0 overflow-y-auto border-r border-rule bg-surface lg:block">
+    <>
       <Kpis />
       <Throughput />
       <Zones />
       <Orders />
+    </>
+  );
+}
+
+export function LeftColumn() {
+  return (
+    <aside className="scroll-thin hidden w-[300px] shrink-0 overflow-y-auto border-r border-rule bg-surface lg:block">
+      <OverviewPanels />
     </aside>
   );
 }

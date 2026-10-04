@@ -15,7 +15,7 @@ function FitZoom() {
   const { size, camera } = useThree();
   useEffect(() => {
     const usable = size.width;
-    camera.zoom = Math.max(12, Math.min(usable / 31, size.height / 20, 60));
+    camera.zoom = Math.max(8, Math.min(usable / (usable < 700 ? 34 : 31), size.height / 20, 60));
     camera.updateProjectionMatrix();
   }, [size.width, size.height, camera]);
   return null;

@@ -31,9 +31,9 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
   const pct = ((xp - lo) / (hi - lo)) * 100;
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-6 whitespace-nowrap border-b border-rule bg-surface px-4">
-      <div className="flex items-baseline gap-3">
-        <span className="text-sm font-semibold">Warehouse Dashboard</span>
+    <header className="flex h-12 shrink-0 items-center gap-3 whitespace-nowrap px-3 md:gap-6 border-b border-rule bg-surface">
+      <div className="flex min-w-0 items-baseline gap-3">
+        <span className="truncate text-sm font-semibold">Warehouse<span className="hidden sm:inline"> Dashboard</span></span>
         <span className="hidden text-xs text-ink/55 sm:inline">JKT-01 · {clock}</span>
       </div>
 
@@ -44,12 +44,13 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
         <span className="text-xs text-ink/55">{xp} / {hi} XP</span>
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="text-xs text-ink/55 md:hidden">Lv {lvl}</span>
         <Coins size={14} className="text-ink/55" />
         <span className="text-sm font-semibold">{coins}</span>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <div role="group" aria-label="Kecepatan simulasi" className="flex overflow-hidden rounded-ui border border-rule">
           {[0, 1, 2, 4].map((s) => (
             <button
