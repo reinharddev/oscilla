@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* One accent, one radius, solid surfaces separated by hairlines.
+   Type: system sans with tabular numerals — a scanned data UI, not a brand surface. */
+@theme {
+  --color-ink: #1c2233;
+  --color-canvas: #eef1f8;
+  --color-surface: #ffffff;
+  --color-rule: #d8dde8;
+  --color-accent: #2f5fd0;
+  --color-ok: #17794f;
+  --color-warn: #a96a0a;
+  --radius-ui: 4px;
+}
+
+html[data-theme="night"] {
+  --color-ink: #e3e8f7;
+  --color-canvas: #070b18;
+  --color-surface: #0d1325;
+  --color-rule: #222b49;
+  --color-accent: #7aa2ff;
+  --color-ok: #4cc38a;
+  --color-warn: #e3b04b;
+}
+
+html, body { height: 100%; margin: 0; background: var(--color-canvas); color: var(--color-ink); overflow: hidden; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--color-rule) transparent; }
