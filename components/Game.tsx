@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { TopBar } from "./hud/TopBar";
 import { Activity, Fleet, LeftColumn, Missions, OverviewPanels, RightColumn } from "./hud/Panels";
+import { MachinePanel, MaintenanceTable } from "./hud/MachinePanel";
 import { SelectedPanel } from "./hud/SelectedPanel";
 import { LevelToast } from "./hud/LevelToast";
 
@@ -15,7 +16,7 @@ const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
 
 export default function Game() {
   const [focus, setFocus] = useState(false);
-  const [tab, setTab] = useState<"overview" | "missions" | "fleet" | null>(null);
+  const [tab, setTab] = useState<"overview" | "machine" | "missions" | "fleet" | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => useStore.getState().tick(), 1000);
@@ -24,6 +25,7 @@ export default function Game() {
       if (saved === "night" || saved === "day") useStore.getState().setTheme(saved);
       else if (window.matchMedia("(prefers-color-scheme: dark)").matches) useStore.getState().setTheme("night");
     } catch {}
+    useStore.getState().initMaintenance();
     useStore.getState().log("info", "Sistem online — semua unit siap beroperasi");
     return () => clearInterval(id);
   }, []);
@@ -44,6 +46,7 @@ export default function Game() {
           {tab && (
             <div className="scroll-thin absolute inset-x-0 bottom-0 top-[38%] overflow-y-auto border-t border-rule bg-surface lg:hidden">
               {tab === "overview" && <OverviewPanels />}
+              {tab === "machine" && <><MachinePanel /><MaintenanceTable /></>}
               {tab === "missions" && <Missions />}
               {tab === "fleet" && <><Fleet /><Activity /></>}
             </div>
@@ -51,8 +54,8 @@ export default function Game() {
         </div>
         {!focus && <RightColumn />}
       </div>
-      <nav aria-label="Panel" className="grid h-12 shrink-0 grid-cols-4 border-t border-rule bg-surface text-xs lg:hidden">
-        {([["overview", "Operasi"], ["missions", "Misi"], ["fleet", "Armada"]] as const).map(([k, label]) => (
+      <nav aria-label="Panel" className="grid h-12 shrink-0 grid-cols-5 border-t border-rule bg-surface text-xs lg:hidden">
+        {([["overview", "Operasi"], ["machine", "Mesin"], ["missions", "Misi"], ["fleet", "Armada"]] as const).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab((t) => (t === k ? null : k))}

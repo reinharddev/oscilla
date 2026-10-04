@@ -5,6 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { CatmullRomCurve3, Group, Vector3 } from "three";
 import { EntityType, Pose, Vec3 } from "@/lib/layout";
 import { useStore } from "@/lib/store";
+import { statusOf } from "@/lib/health";
 
 export type Sampler = (p: number, out: Pose) => void;
 
@@ -45,18 +46,33 @@ export function Follower({ id, type, label, sample, duration, offset = 0, onLoop
   const progress = useRef(offset);
   const pose = useMemo<Pose>(() => ({ x: 0, y: 0, z: 0, yaw: 0 }), []);
   const hovered = useRef(false);
+  const hring = useRef<Group>(null);
+  const lastColor = useRef("");
 
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
     const s = useStore.getState();
     const boost = (s.boosts[id] ?? 0) > Date.now() ? 2 : 1;
-    const next = progress.current + (Math.min(dt, 0.1) * s.speed * boost) / duration;
+    const paused = s.schedules[id]?.inProgress;
+    const next = progress.current + (paused ? 0 : (Math.min(dt, 0.1) * s.speed * boost) / duration);
     if (Math.floor(next) > Math.floor(progress.current) && onLoop) onLoop();
     progress.current = next;
     sample(next - Math.floor(next), pose);
     g.position.set(pose.x, pose.y, pose.z);
     g.rotation.y = pose.yaw;
+    if (hring.current) {
+      const h = s.health[id];
+      let color = "";
+      if (paused) color = "#5b8def";
+      else if (h) { const st = statusOf(h); color = st === "critical" ? "#e5484d" : st === "attention" ? "#e8a33d" : ""; }
+      hring.current.visible = color !== "";
+      if (color && color !== lastColor.current) {
+        (hring.current.children[0] as unknown as { material: { color: { set: (c: string) => void } } }).material.color.set(color);
+        lastColor.current = color;
+      }
+      if (color) hring.current.scale.setScalar(1 + Math.sin(performance.now() / 280) * 0.06);
+    }
     if (ring.current) {
       const sel = s.selected?.id === id;
       ring.current.visible = sel || hovered.current;
@@ -74,6 +90,14 @@ export function Follower({ id, type, label, sample, duration, offset = 0, onLoop
       onPointerOut={inert ? undefined : () => { hovered.current = false; document.body.style.cursor = ""; }}
     >
       {children}
+      {!inert && (
+        <group ref={hring} visible={false} position={[0, 0.04, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[type === "truck" ? 2.3 : 0.85, type === "truck" ? 2.45 : 1.0, 40]} />
+            <meshBasicMaterial color="#e8a33d" transparent opacity={0.95} />
+          </mesh>
+        </group>
+      )}
       {!inert && (
         <group ref={ring} visible={false} position={[0, 0.05, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>

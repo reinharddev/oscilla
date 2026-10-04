@@ -1,12 +1,15 @@
 import { create } from "zustand";
 import { EntityType, FLEET } from "./layout";
 import type { Theme } from "./theme";
+import { Health, MACHINES, readings, seedHealth, statusOf, STATUS_LABEL, FAULT_LABEL } from "./health";
 
 export interface Selected { id: string; type: EntityType; label: string }
 export interface LogEvent { id: number; time: string; kind: "info" | "success" | "warn" | "level"; text: string }
 export type Metric = "delivered" | "pallets" | "trucks" | "boosts";
 export interface Mission { id: number; title: string; metric: Metric; goal: number; base: number; xp: number; coins: number }
 export interface Order { id: string; customer: string; items: number; status: "Picking" | "Packed" | "Shipped" }
+export interface Schedule { due: number | null; lastDone: number | null; inProgress: boolean }
+export interface JournalEntry { id: number; ts: number; kind: "note" | "alert" | "schedule" | "start" | "done"; text: string }
 export interface FleetState { battery: number; status: "active" | "charging" }
 
 export const levelFromXp = (xp: number) => Math.floor(Math.sqrt(xp / 60)) + 1;
@@ -41,6 +44,15 @@ interface State {
   events: LogEvent[];
   missions: Mission[];
   levelUp: number | null;
+  health: Record<string, Health>;
+  schedules: Record<string, Schedule>;
+  journal: Record<string, JournalEntry[]>;
+
+  initMaintenance: () => void;
+  scheduleMaintenance: (id: string, due: number) => void;
+  startMaintenance: (id: string) => void;
+  completeMaintenance: (id: string, note: string) => void;
+  addNote: (id: string, text: string) => void;
 
   setSpeed: (s: number) => void;
   setTheme: (t: Theme) => void;
@@ -61,6 +73,10 @@ const mkMission = (i: number, base: Record<Metric, number>, scale = 1): Mission 
   const goal = Math.round(p.goal * scale);
   return { id: missionSeq++, title: p.title.replace("{n}", String(goal)), metric: p.metric, goal, base: base[p.metric], xp: Math.round(p.xp * scale), coins: Math.round(p.coins * scale) };
 };
+
+function persistMaint(get: () => State) {
+  try { localStorage.setItem("wt-maint", JSON.stringify({ schedules: get().schedules, journal: get().journal })); } catch {}
+}
 
 const zeroCounters: Record<Metric, number> = { delivered: 0, pallets: 0, trucks: 0, boosts: 0 };
 
@@ -89,6 +105,65 @@ export const useStore = create<State>((set, get) => ({
   events: [],
   missions: [mkMission(0, zeroCounters), mkMission(1, zeroCounters), mkMission(2, zeroCounters)],
   levelUp: null,
+  health: seedHealth(),
+  schedules: Object.fromEntries(MACHINES.map((m) => [m.id, { due: null, lastDone: null, inProgress: false }])),
+  journal: Object.fromEntries(MACHINES.map((m) => [m.id, []])),
+
+  initMaintenance: () => {
+    try {
+      const raw = localStorage.getItem("wt-maint");
+      if (raw) { const d = JSON.parse(raw); set({ schedules: { ...get().schedules, ...d.schedules }, journal: { ...get().journal, ...d.journal } }); return; }
+    } catch {}
+    const DAY = 86_400_000, now = Date.now();
+    const seed: [string, number, string][] = [
+      ["fk-1", 12, "Servis berkala 250 jam: ganti oli hidrolik, cek rantai mast."],
+      ["fk-2", 41, "Pelumasan roda depan. Teknisi mencatat getaran sedikit tinggi, pantau."],
+      ["fk-3", 20, "Ganti filter hidrolik."],
+      ["agv-1", 9, "Kalibrasi sensor lidar dan roda."],
+      ["agv-2", 33, "Update firmware navigasi v2.4."],
+      ["agv-3", 15, "Ganti sikat roda penggerak."],
+      ["dr-1", 7, "Ganti baling-baling dan kalibrasi gimbal."],
+      ["dr-2", 26, "Tes kapasitas baterai: 91%."],
+    ];
+    const schedules = { ...get().schedules }, journal = { ...get().journal };
+    seed.forEach(([id, ago, text], i) => {
+      schedules[id] = { due: null, lastDone: now - ago * DAY, inProgress: false };
+      journal[id] = [{ id: now + i, ts: now - ago * DAY, kind: "done", text }];
+    });
+    set({ schedules, journal });
+    try { localStorage.setItem("wt-maint", JSON.stringify({ schedules, journal })); } catch {}
+  },
+
+  scheduleMaintenance: (id, due) => {
+    const s = get();
+    set({ schedules: { ...s.schedules, [id]: { ...s.schedules[id], due } }, journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "schedule", text: `Maintenance dijadwalkan ${new Date(due).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}` }, ...s.journal[id]] } });
+    persistMaint(get);
+  },
+  startMaintenance: (id) => {
+    const s = get();
+    set({ schedules: { ...s.schedules, [id]: { ...s.schedules[id], inProgress: true } }, journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "start", text: "Maintenance dimulai, unit dihentikan dari operasi." }, ...s.journal[id]] } });
+    get().log("info", `${MACHINES.find((m) => m.id === id)?.label} masuk maintenance`);
+    persistMaint(get);
+  },
+  completeMaintenance: (id, note) => {
+    const s = get();
+    const h = s.health[id];
+    const r = readings(0.02, h.fault);
+    set({
+      schedules: { ...s.schedules, [id]: { due: null, lastDone: Date.now(), inProgress: false } },
+      health: { ...s.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] } } },
+      journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "done", text: note.trim() || "Maintenance selesai." }, ...s.journal[id]] },
+    });
+    get().addXp(35, 15);
+    get().log("success", `${MACHINES.find((m) => m.id === id)?.label} selesai maintenance · +35 XP`);
+    persistMaint(get);
+  },
+  addNote: (id, text) => {
+    if (!text.trim()) return;
+    const s = get();
+    set({ journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "note", text: text.trim() }, ...s.journal[id]] } });
+    persistMaint(get);
+  },
 
   setSpeed: (speed) => set({ speed }),
   setTheme: (theme) => {
@@ -166,6 +241,24 @@ export const useStore = create<State>((set, get) => ({
 
     const zones = Object.fromEntries(Object.entries(s.zones).map(([z, v]) => [z, Math.max(20, Math.min(97, v + (Math.random() - 0.5) * 3))]));
 
+    const health = { ...s.health };
+    const journal = { ...s.journal };
+    for (const m of MACHINES) {
+      const h = health[m.id];
+      if (s.schedules[m.id]?.inProgress) continue;
+      const before = statusOf(h);
+      const wear = Math.min(0.99, h.wear + 0.0009 * k * (0.7 + Math.random() * 0.6));
+      const r = readings(wear, h.fault, (Math.random() - 0.5) * 2);
+      const cap = (a: number[], v: number) => [...a.slice(-39), v];
+      const nh: Health = { ...h, wear, ...r, hist: { vib: cap(h.hist.vib, r.vib), temp: cap(h.hist.temp, r.temp), cur: cap(h.hist.cur, r.cur) } };
+      health[m.id] = nh;
+      const after = statusOf(nh);
+      if (after !== before && after !== "healthy") {
+        journal[m.id] = [{ id: Date.now() + Math.random(), ts: Date.now(), kind: "alert", text: `Status berubah ke ${STATUS_LABEL[after]}: ${FAULT_LABEL[nh.fault]} terdeteksi.` }, ...journal[m.id]];
+        get().log("warn", `${m.label}: ${STATUS_LABEL[after]} (${FAULT_LABEL[nh.fault]})`);
+      }
+    }
+
     let orders = s.orders;
     if (Math.random() < 0.45 * k) {
       orders = orders.map((o) => (o.status === "Picking" && Math.random() < 0.5 ? { ...o, status: "Packed" as const } : o.status === "Packed" && Math.random() < 0.5 ? { ...o, status: "Shipped" as const } : o));
@@ -178,6 +271,6 @@ export const useStore = create<State>((set, get) => ({
       const msgs = ["Stok SKU-2231 menipis di Zone A", "Pintu dock 2 terbuka > 5 menit", "Scan drone mendeteksi pallet miring di Rak B3", "Suhu area packing naik 2°C"];
       get().log("warn", msgs[Math.floor(Math.random() * msgs.length)]);
     }
-    set({ series, fleet, zones, orders, ordersToday: s.ordersToday + rate, shipped: s.shipped + Math.floor(rate / 2) });
+    set({ series, fleet, zones, orders, health, journal, ordersToday: s.ordersToday + rate, shipped: s.shipped + Math.floor(rate / 2) });
   },
 }));

@@ -10,6 +10,7 @@
   --color-accent: #2f5fd0;
   --color-ok: #17794f;
   --color-warn: #a96a0a;
+  --color-bad: #c9302c;
   --radius-ui: 4px;
 }
 
@@ -21,6 +22,8 @@ html[data-theme="night"] {
   --color-accent: #7aa2ff;
   --color-ok: #4cc38a;
   --color-warn: #e3b04b;
+  --color-bad: #f2686a;
+  color-scheme: dark;
 }
 
 html, body { height: 100%; margin: 0; background: var(--color-canvas); color: var(--color-ink); overflow: hidden; }
