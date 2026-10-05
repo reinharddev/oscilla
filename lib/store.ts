@@ -78,9 +78,9 @@ interface State {
   applyAnalyses: (results: AnalysisResult[], serviceUp: boolean) => void;
 
   hydrate: (init: HydrateInput) => void;
-  scheduleMaintenance: (id: string, due: number) => Promise<void>;
+  scheduleMaintenance: (id: string, due: number, extra?: { summary?: string; aiDiagnosis?: unknown }) => Promise<void>;
   startMaintenance: (id: string) => Promise<void>;
-  completeMaintenance: (id: string, note: string) => Promise<void>;
+  completeMaintenance: (id: string, note: string, feedback?: "correct" | "incorrect") => Promise<void>;
   addNote: (id: string, text: string) => Promise<void>;
 
   setSpeed: (s: number) => void;
@@ -224,14 +224,14 @@ export const useStore = create<State>((set, get) => ({
       return { health, journal, analysisStatus: serviceUp ? ("live" as const) : ("offline" as const) };
     }),
 
-  scheduleMaintenance: async (id, due) => {
+  scheduleMaintenance: async (id, due, extra) => {
     const s = get();
     const assetId = id;
     const meta = s.assetMeta[assetId];
     if (!meta) return;
     const { data, error } = await createClient()
       .from("work_orders")
-      .insert({ asset_id: assetId, ...meta, summary: "Maintenance terjadwal", due_at: new Date(due).toISOString() })
+      .insert({ asset_id: assetId, ...meta, summary: (extra?.summary ?? "Maintenance terjadwal").slice(0, 2000), due_at: new Date(due).toISOString(), ai_diagnosis: extra?.aiDiagnosis ?? null })
       .select("id")
       .single();
     if (error) { get().log("warn", `Jadwal gagal disimpan: ${error.message}`); return; }
@@ -264,14 +264,14 @@ export const useStore = create<State>((set, get) => ({
     get().log("info", `${get().machines.find((m) => m.id === id)?.label} masuk maintenance`);
   },
 
-  completeMaintenance: async (id, note) => {
+  completeMaintenance: async (id, note, feedback) => {
     const s = get();
     const workOrderId = s.schedules[id].workOrderId;
     const text = note.trim() || "Maintenance selesai.";
     if (workOrderId) {
       const { error } = await createClient()
         .from("work_orders")
-        .update({ status: "done", completed_at: new Date().toISOString(), summary: text.slice(0, 2000) })
+        .update({ status: "done", completed_at: new Date().toISOString(), ...(feedback ? { diagnosis_feedback: feedback } : {}) })
         .eq("id", workOrderId);
       if (error) { get().log("warn", `Gagal menyelesaikan: ${error.message}`); return; }
     }

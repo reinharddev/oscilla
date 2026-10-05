@@ -9,7 +9,9 @@
     "test:db": "node --test supabase/tests/rls.test.mjs",
     "test:health": "cd health-service && .venv/bin/python -m pytest -q",
     "dev:health": "cd health-service && .venv/bin/uvicorn app.main:app --port 8100",
-    "test": "npm run test:health && npm run test:db && node --test tests/layouts.test.mjs"
+    "test": "npm run test:health && npm run test:db && node --test tests/layouts.test.mjs && npm run test:copilot",
+    "test:copilot": "vitest run",
+    "mock:llm": "node scripts/mock-llm.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -32,6 +34,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   }
 }

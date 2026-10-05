@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { analysis, FAULT_LABEL, featureLabel, LIMIT, rulDays, scoreOf, STATUS_LABEL, statusOf } from "@/lib/health";
 import { canWrite, useStore } from "@/lib/store";
+import { CopilotPanel } from "./CopilotPanel";
 import { Section } from "./ui";
 
 const fmt = (ts: number) => new Date(ts).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
@@ -45,6 +46,7 @@ export function MachinePanel() {
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
   const [work, setWork] = useState("");
+  const [feedback, setFeedback] = useState<"correct" | "incorrect" | undefined>();
 
   const machine = selected ? machines.find((m) => m.id === selected.id) : undefined;
   if (!selected || !machine || !health[selected.id]) {
@@ -103,6 +105,8 @@ export function MachinePanel() {
         ) : null}
       </Section>
 
+      <CopilotPanel key={id} machineId={id} canAct={writable} />
+
       <Section title="Maintenance" aside={sch.lastDone ? `Terakhir ${ago(sch.lastDone)}` : "Belum pernah"}>
         {!writable ? (
           <div className="space-y-1 text-xs">
@@ -114,7 +118,15 @@ export function MachinePanel() {
           <div className="space-y-2">
             <p className="text-xs text-ink/70">Unit sedang dihentikan untuk maintenance. Tulis pekerjaan yang dilakukan lalu tandai selesai.</p>
             <textarea value={work} onChange={(e) => setWork(e.target.value)} rows={3} placeholder="Pekerjaan yang dilakukan, suku cadang, temuan…" className="w-full rounded-ui border border-rule bg-surface p-2 text-xs outline-none focus:border-accent" />
-            <button onClick={() => { completeMaintenance(id, work); setWork(""); }} className="h-8 w-full rounded-ui bg-accent text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90">Tandai selesai</button>
+            <div className="text-xs text-ink/60">
+              Apakah diagnosis AI sesuai dengan temuanmu?
+              <div className="mt-1 flex gap-2">
+                {([["correct", "Sesuai"], ["incorrect", "Tidak sesuai"]] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => setFeedback(feedback === k ? undefined : k)} aria-pressed={feedback === k} className={`h-7 rounded-ui border px-2.5 text-xs transition-colors duration-150 ${feedback === k ? "border-ink/40 bg-ink/10 text-ink" : "border-rule hover:bg-ink/5"}`}>{label}</button>
+                ))}
+              </div>
+            </div>
+            <button onClick={() => { completeMaintenance(id, work, feedback); setWork(""); setFeedback(undefined); }} className="h-8 w-full rounded-ui bg-accent text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90">Tandai selesai</button>
           </div>
         ) : (
           <div className="space-y-2">

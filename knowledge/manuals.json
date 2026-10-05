@@ -1,0 +1,72 @@
+[
+  {
+    "id": "POL-p3", "docId": "SITE-POL", "docTitle": "Site Maintenance Policy (sample)", "page": 3, "section": "Vibration and temperature alert limits",
+    "appliesTo": ["forklift", "agv", "drone", "conveyor"],
+    "text": "Alert limits used on this site: overall vibration above 4.5 mm/s RMS, motor temperature above 75 C, or motor current above 10.5 A. A machine that exceeds a limit must be inspected within the remaining-life estimate shown on the dashboard. A machine whose health score is below 50 is critical: remove it from service before the next shift unless a technician confirms it is safe. Every inspection and repair must be written in the machine journal."
+  },
+  {
+    "id": "POL-p5", "docId": "SITE-POL", "docTitle": "Site Maintenance Policy (sample)", "page": 5, "section": "Human review of automated diagnoses",
+    "appliesTo": ["forklift", "agv", "drone", "conveyor"],
+    "text": "Automated diagnoses are decision support. A technician confirms or rejects the diagnosis when closing the work order. If the evidence is weak, contradictory, or the machine is critical, the diagnosis must be reviewed by a technician before any part is replaced."
+  },
+  {
+    "id": "FKL-p12", "docId": "FKL-SM", "docTitle": "Forklift Service Manual (sample)", "page": 12, "section": "Mast, chains and hydraulic oil",
+    "appliesTo": ["forklift"],
+    "text": "Every 250 operating hours: replace hydraulic oil and filter, lubricate mast chains, check chain stretch. Chain stretch above 3 percent requires chain replacement. Listen for chatter when the mast is raised; chatter indicates dry chains or worn rollers."
+  },
+  {
+    "id": "FKL-p41", "docId": "FKL-SM", "docTitle": "Forklift Service Manual (sample)", "page": 41, "section": "Front wheel and wheel bearing inspection",
+    "appliesTo": ["forklift"],
+    "text": "Rising vibration at the front wheel, rumbling noise when turning, or a peak in the envelope spectrum at the bearing outer-race defect frequency indicates wheel bearing wear. Lift the axle, spin the wheel by hand and check for roughness and play. Play above 0.2 mm or a gritty feel means the bearing must be replaced. Check grease condition: dark, metallic grease confirms advanced wear."
+  },
+  {
+    "id": "FKL-p44", "docId": "FKL-SM", "docTitle": "Forklift Service Manual (sample)", "page": 44, "section": "Wheel bearing replacement procedure",
+    "appliesTo": ["forklift"],
+    "text": "Replace both bearings of the same axle together. Press out the old bearing, clean the seat, press in the new bearing with an even tool, pack with grease, and tighten the axle nut to 280 Nm. After replacement, run the machine for 10 minutes and record vibration and temperature in the journal. Reset the vibration baseline after a successful repair."
+  },
+  {
+    "id": "FKL-p58", "docId": "FKL-SM", "docTitle": "Forklift Service Manual (sample)", "page": 58, "section": "Drive motor temperature and cooling",
+    "appliesTo": ["forklift"],
+    "text": "Motor temperature more than 15 C above the normal operating level suggests a blocked cooling fan, dust-clogged vents, or a failing winding. Clean the vents, check that the fan spins freely, and measure winding resistance. If the temperature stays high after cleaning, take the machine out of service and have the motor tested."
+  },
+  {
+    "id": "AGV-p8", "docId": "AGV-GM", "docTitle": "AGV Maintenance Guide (sample)", "page": 8, "section": "Drive wheel module overview",
+    "appliesTo": ["agv"],
+    "text": "Each drive wheel module has a motor, a gearbox and two wheel bearings. Vibration is measured on the module housing. Typical causes of rising vibration are bearing wear, a loose mounting bolt, or a flat spot on the wheel tread."
+  },
+  {
+    "id": "AGV-p19", "docId": "AGV-GM", "docTitle": "AGV Maintenance Guide (sample)", "page": 19, "section": "Drive wheel bearing wear",
+    "appliesTo": ["agv"],
+    "text": "A peak in the envelope spectrum at the bearing defect frequency, together with higher crest factor and kurtosis, indicates a developing bearing defect. Schedule bearing replacement at the next planned stop. Inspect mounting bolts first, because loose bolts produce a similar rise in vibration. Torque module bolts to 45 Nm."
+  },
+  {
+    "id": "AGV-p26", "docId": "AGV-GM", "docTitle": "AGV Maintenance Guide (sample)", "page": 26, "section": "Motor overheating",
+    "appliesTo": ["agv"],
+    "text": "If drive motor temperature rises while vibration stays normal, check for a blocked heat sink, a worn wheel increasing load, or a degraded motor driver. Reduce the load profile and schedule an inspection. Do not operate the AGV with motor temperature above 75 C."
+  },
+  {
+    "id": "AGV-p31", "docId": "AGV-GM", "docTitle": "AGV Maintenance Guide (sample)", "page": 31, "section": "Battery degradation",
+    "appliesTo": ["agv", "drone"],
+    "text": "Rising current draw with shorter run time indicates battery cell degradation. Run a capacity test; replace the pack when capacity falls below 80 percent of rated capacity. Record the measured capacity in the journal."
+  },
+  {
+    "id": "CVR-p14", "docId": "CVR-GM", "docTitle": "Conveyor Roller Drive Guide (sample)", "page": 14, "section": "Roller drive and bearing condition",
+    "appliesTo": ["conveyor"],
+    "text": "Drive rollers have sealed bearings that cannot be re-greased. A rise in roller vibration, an envelope-spectrum peak at the bearing defect frequency, or a rumbling noise at belt start-up indicates bearing wear. Replace the roller drive unit; do not run a worn roller, because it damages the belt."
+  },
+  {
+    "id": "CVR-p22", "docId": "CVR-GM", "docTitle": "Conveyor Roller Drive Guide (sample)", "page": 22, "section": "Roller replacement and belt tension",
+    "appliesTo": ["conveyor"],
+    "text": "Stop and lock out the conveyor before work. Replace the faulty roller, then re-set belt tension so the belt deflects 10 mm under hand pressure at mid-span. Run the belt empty for 5 minutes and check vibration before returning to service."
+  },
+  {
+    "id": "DRN-p11", "docId": "DRN-GM", "docTitle": "Inspection Drone Maintenance Guide (sample)", "page": 11, "section": "Propeller and motor vibration",
+    "appliesTo": ["drone"],
+    "text": "Rising vibration on a rotor arm is usually an unbalanced or damaged propeller, a loose motor mount, or a worn motor bearing. Replace damaged propellers, tighten mounts, then re-balance. If vibration stays high with new propellers, replace the motor."
+  },
+  {
+    "id": "DRN-p17", "docId": "DRN-GM", "docTitle": "Inspection Drone Maintenance Guide (sample)", "page": 17, "section": "Flight battery",
+    "appliesTo": ["drone"],
+    "text": "Battery capacity below 80 percent of rated capacity shortens flight time and raises current draw. Retire the pack and record the capacity test result in the journal."
+  }
+]
