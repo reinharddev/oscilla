@@ -41,3 +41,23 @@ def test_too_few_baseline_windows_rejected():
 
 def test_simulate_validates_severity():
     assert client.post("/simulate", json={"severity": 2}).status_code == 422
+
+
+def test_demo_analyze_scores_by_damage_and_names_the_evidence():
+    ok = client.post("/demo/analyze", json={"asset_id": "demo-1", "severity": 0.0, "seed": 5}).json()
+    bad = client.post("/demo/analyze", json={"asset_id": "demo-1", "severity": 0.6, "seed": 5}).json()
+    assert ok["status"] == "healthy" and ok["score"] >= 85
+    assert bad["score"] < ok["score"] and bad["status"] in {"attention", "critical"}
+    assert any(e["feature"] == "bpfo_envelope_ratio" for e in bad["evidence"])
+    assert bad["source"] == "simulated sensor" and bad["model_version"]
+
+
+def test_demo_analyze_keeps_separate_baselines_per_machine_speed():
+    a = client.post("/demo/analyze", json={"asset_id": "demo-2", "severity": 0.0, "rpm": 900, "seed": 1}).json()
+    b = client.post("/demo/analyze", json={"asset_id": "demo-3", "severity": 0.0, "rpm": 6000, "seed": 1}).json()
+    assert a["status"] == "healthy" and b["status"] == "healthy"
+
+
+def test_demo_analyze_validates_input():
+    assert client.post("/demo/analyze", json={"asset_id": "x", "severity": 3}).status_code == 422
+    assert client.post("/demo/analyze", json={"severity": 0.1}).status_code == 422

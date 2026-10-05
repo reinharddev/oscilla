@@ -16,6 +16,7 @@ from .features import FEATURE_LABELS, FEATURE_NAMES, feature_vector
 # Deviation is measured on a log scale so one extreme feature cannot dominate, and the
 # score then falls smoothly as damage grows. D50 is the deviation that maps to a score of
 # 50; the exponent sets how sharply it falls. Tuned on synthetic windows (see tests).
+MODEL_VERSION = "baseline-v0"
 D50 = 1.8
 SHARPNESS = 3
 

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "test:db": "node --test supabase/tests/rls.test.mjs",
-    "test:health": "cd health-service && .venv/bin/python -m pytest -q"
+    "test:health": "cd health-service && .venv/bin/python -m pytest -q",
+    "dev:health": "cd health-service && .venv/bin/uvicorn app.main:app --port 8100",
+    "test": "npm run test:health && npm run test:db && node --test tests/layouts.test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

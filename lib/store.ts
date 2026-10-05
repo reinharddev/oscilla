@@ -3,7 +3,7 @@ import type { EntityType } from "./layout";
 import type { WarehouseLayout } from "./layout-schema";
 import type { Theme } from "./theme";
 import { createClient } from "./supabase/client";
-import { Health, Machine, readings, seedHealth, statusOf, STATUS_LABEL, FAULT_LABEL } from "./health";
+import { Evidence, Health, Machine, readings, scoreOf, seedHealth, statusOf, STATUS_LABEL, FAULT_LABEL } from "./health";
 
 export interface Selected { id: string; type: EntityType; label: string }
 export interface EntityInfo { id: string; label: string; type: EntityType }
@@ -24,6 +24,10 @@ export interface HydrateInput {
   journal: { id: string; asset_id: string; author_id: string; kind: JournalEntry["kind"]; body: string; created_at: string }[];
   workOrders: { id: string; asset_id: string; status: string; due_at: string | null; completed_at: string | null }[];
 }
+
+export type AnalysisResult =
+  | { assetId: string; score: number; status: "healthy" | "attention" | "critical"; evidence: Evidence[]; modelVersion: string; source: string }
+  | { assetId: string; error: string };
 
 export const canWrite = (a: AuthInfo | null) => a?.role === "admin" || a?.role === "manager" || a?.role === "technician";
 export interface FleetState { battery: number; status: "active" | "charging" }
@@ -69,6 +73,9 @@ interface State {
   layout: WarehouseLayout | null;
   warehouses: { id: string; name: string }[];
   assetMeta: Record<string, { org_id: string; warehouse_id: string }>;
+
+  analysisStatus: "idle" | "live" | "offline";
+  applyAnalyses: (results: AnalysisResult[], serviceUp: boolean) => void;
 
   hydrate: (init: HydrateInput) => void;
   scheduleMaintenance: (id: string, due: number) => Promise<void>;
@@ -151,6 +158,7 @@ export const useStore = create<State>((set, get) => ({
   journal: {},
 
   auth: null,
+  analysisStatus: "idle",
   machines: [],
   entities: [],
   layout: null,
@@ -193,6 +201,28 @@ export const useStore = create<State>((set, get) => ({
       selected: null, boosts: {}, events: [],
     });
   },
+
+  applyAnalyses: (results, serviceUp) =>
+    set((st) => {
+      const health = { ...st.health };
+      const alerts: { id: string; label: string; status: string }[] = [];
+      for (const r of results) {
+        const prev = health[r.assetId];
+        if (!prev || !("score" in r)) continue;
+        const next: Health = { ...prev, analysis: { score: r.score, status: r.status, evidence: r.evidence, modelVersion: r.modelVersion, source: r.source, at: Date.now() } };
+        if (statusOf(prev) !== statusOf(next) && statusOf(next) !== "healthy" && !st.schedules[r.assetId]?.inProgress) {
+          const label = st.machines.find((m) => m.id === r.assetId)?.label ?? r.assetId;
+          alerts.push({ id: r.assetId, label, status: STATUS_LABEL[statusOf(next)] });
+        }
+        health[r.assetId] = next;
+      }
+      const journal = { ...st.journal };
+      for (const a of alerts) {
+        journal[a.id] = [{ id: `local-${Date.now()}-${a.id}`, ts: Date.now(), kind: "alert" as const, text: `Status berubah ke ${a.status} (analisis Health Service).` }, ...(journal[a.id] ?? [])];
+      }
+      queueMicrotask(() => alerts.forEach((a) => get().log("warn", `${a.label}: ${a.status}`)));
+      return { health, journal, analysisStatus: serviceUp ? ("live" as const) : ("offline" as const) };
+    }),
 
   scheduleMaintenance: async (id, due) => {
     const s = get();
@@ -249,7 +279,7 @@ export const useStore = create<State>((set, get) => ({
     const r = readings(0.02, h.fault);
     set((st) => ({
       schedules: { ...st.schedules, [id]: { due: null, lastDone: Date.now(), inProgress: false } },
-      health: { ...st.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] } } },
+      health: { ...st.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] }, analysis: undefined } },
     }));
     await addEntry(get, set, id, "done", text);
     get().addXp(35, 15);

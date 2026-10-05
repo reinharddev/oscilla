@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { analysis, FAULT_LABEL, LIMIT, rulDays, scoreOf, STATUS_LABEL, statusOf } from "@/lib/health";
+import { analysis, FAULT_LABEL, featureLabel, LIMIT, rulDays, scoreOf, STATUS_LABEL, statusOf } from "@/lib/health";
 import { canWrite, useStore } from "@/lib/store";
 import { Section } from "./ui";
 
@@ -40,7 +40,7 @@ function Reading({ label, unit, value, data, limit }: { label: string; unit: str
 const KIND_LABEL = { note: "Catatan", alert: "Peringatan", schedule: "Jadwal", start: "Mulai", done: "Selesai" } as const;
 
 export function MachinePanel() {
-  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth, machines } = useStore();
+  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth, machines, analysisStatus } = useStore();
   const writable = canWrite(auth);
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
@@ -81,6 +81,26 @@ export function MachinePanel() {
         </div>
         <div className="mt-3 text-xs text-ink/55">Analisis otomatis</div>
         <p className="mt-1 text-[13px] leading-relaxed">{analysis(h)}</p>
+        {h.analysis ? (
+          <div className="mt-3">
+            <div className="text-xs text-ink/55">Bukti dari sinyal getaran</div>
+            {h.analysis.evidence.length === 0 ? (
+              <p className="mt-1 text-xs text-ink/70">Tidak ada fitur yang menyimpang dari baseline.</p>
+            ) : (
+              <ul className="mt-1 divide-y divide-rule border-y border-rule text-xs">
+                {h.analysis.evidence.map((e) => (
+                  <li key={e.feature} className="flex justify-between gap-3 py-1.5">
+                    <span>{featureLabel(e)}</span>
+                    <span className="shrink-0 text-ink/60">{e.value.toFixed(2)} vs {e.baseline.toFixed(2)} · z {e.z_score}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-1.5 text-xs text-ink/45">Dihitung Health Service ({h.analysis.modelVersion}) dari sensor simulasi.</div>
+          </div>
+        ) : analysisStatus === "offline" ? (
+          <p className="mt-2 text-xs text-ink/45">Health Service tidak terjangkau; memakai estimasi lokal.</p>
+        ) : null}
       </Section>
 
       <Section title="Maintenance" aside={sch.lastDone ? `Terakhir ${ago(sch.lastDone)}` : "Belum pernah"}>

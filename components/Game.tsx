@@ -31,6 +31,30 @@ export default function Game({ initial }: { initial: HydrateInput }) {
     return () => clearInterval(id);
   }, [initial]);
 
+  // Ask the health service to score every machine; falls back to local estimates if unreachable.
+  useEffect(() => {
+    let busy = false;
+    const run = async () => {
+      const s = useStore.getState();
+      if (busy || s.speed === 0 || document.hidden || s.machines.length === 0) return;
+      busy = true;
+      try {
+        const items = s.machines.map((m) => ({ assetId: m.id, severity: Math.min(1, Math.max(0, s.health[m.id]?.wear ?? 0)) }));
+        const res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        useStore.getState().applyAnalyses(data.results, data.serviceUp);
+      } catch {
+        useStore.setState({ analysisStatus: "offline" });
+      } finally {
+        busy = false;
+      }
+    };
+    const first = setTimeout(run, 1500);
+    const id = setInterval(run, 5000);
+    return () => { clearTimeout(first); clearInterval(id); };
+  }, [initial]);
+
   if (!ready) {
     return <main className="grid h-dvh w-screen place-items-center bg-canvas text-sm text-ink/50">Memuat gudang…</main>;
   }
