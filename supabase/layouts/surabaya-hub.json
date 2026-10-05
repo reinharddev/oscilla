@@ -1,0 +1,33 @@
+{
+  "floor": { "x0": -14, "x1": 12, "z0": -10, "z1": 10 },
+  "zones": [
+    { "id": "IN", "name": "Inbound", "color": "#a8d8ff", "x": -2, "z": -6, "w": 10, "d": 5.6 },
+    { "id": "SORT", "name": "Sorting Line", "color": "#ffe0a3", "x": -2, "z": 2.2, "w": 21, "d": 5.6 },
+    { "id": "OUT", "name": "Outbound", "color": "#a8e6cf", "x": 8, "z": -6.5, "w": 6, "d": 6 }
+  ],
+  "racks": [
+    { "z": -8.5, "x0": -13, "bays": 4 },
+    { "z": -5.5, "x0": -13, "bays": 4 }
+  ],
+  "conveyors": [
+    { "id": "cv-s1", "label": "Sorter Belt 1", "z": 1.0, "x0": -12, "x1": 8, "serial": "CV-2025-0101" },
+    { "id": "cv-s2", "label": "Sorter Belt 2", "z": 3.4, "x0": -12, "x1": 8, "serial": "CV-2025-0102" }
+  ],
+  "arms": [
+    { "x": 9.4, "z": 1.0, "rot": -1.3 },
+    { "x": 9.4, "z": 3.4, "rot": -1.8 }
+  ],
+  "dock": { "wallX": 12.4, "roadX": 13.7, "bays": [-6, 5.5] },
+  "entities": [
+    { "serial": "AGV-2025-0101", "model": "agv", "motion": { "kind": "rect", "x0": -3, "x1": 4, "z0": -8, "z1": -3, "r": 1.2 }, "duration": 18 },
+    { "serial": "AGV-2025-0102", "model": "agv", "style": { "color": "#ffb0cf", "parcel": "#a8d8ff" }, "motion": { "kind": "rect", "x0": -2, "x1": 3, "z0": -7, "z1": -4, "r": 0.8, "cw": false }, "duration": 12, "offset": 0.5, "demoWear": 0.42 },
+    { "serial": "AGV-2025-0103", "model": "agv", "style": { "color": "#b5eac9", "parcel": "#ffb0cf" }, "motion": { "kind": "rect", "x0": 5, "x1": 11, "z0": -9, "z1": -3, "r": 1.2 }, "duration": 20, "offset": 0.2 },
+    { "serial": "AGV-2025-0104", "model": "agv", "style": { "color": "#ffd98a", "parcel": "#b5eac9" }, "motion": { "kind": "rect", "x0": 5.8, "x1": 10.2, "z0": -8, "z1": -4, "r": 0.8, "cw": false }, "duration": 14, "offset": 0.7 },
+    { "serial": "FK-2025-0101", "model": "forklift", "style": { "color": "#ffb98a" }, "motion": { "kind": "rect", "x0": -13, "x1": -4, "z0": -2.5, "z1": -0.5, "r": 0.9 }, "duration": 22 },
+    { "serial": "DR-2025-0101", "model": "drone", "style": { "color": "#c5b8ff" }, "motion": { "kind": "lissajous", "cx": -2, "cz": 0, "ax": 9, "az": 7, "y": 6.5 }, "duration": 28 },
+    { "id": "wk-s1", "label": "Sorter Dewi", "model": "worker", "style": { "vest": "#ffb0cf" }, "motion": { "kind": "rect", "x0": -12, "x1": 8, "z0": 5.4, "z1": 6.4, "r": 0.4 }, "duration": 40 },
+    { "id": "wk-s2", "label": "Loader Andi", "model": "worker", "style": { "vest": "#b5eac9", "hat": "#ffffff" }, "motion": { "kind": "rect", "x0": 10.4, "x1": 11.4, "z0": -9, "z1": 8, "r": 0.4, "cw": false }, "duration": 32, "offset": 0.4 },
+    { "id": "tr-s1", "label": "Truck TR-201", "model": "truck", "style": { "cab": "#ffd98a" }, "motion": { "kind": "truck", "bayZ": -6 }, "duration": 30, "offset": 0.4 },
+    { "id": "tr-s2", "label": "Truck TR-202", "model": "truck", "style": { "cab": "#8ec9ff" }, "motion": { "kind": "truck", "bayZ": 5.5 }, "duration": 30, "offset": 0.22 }
+  ]
+}

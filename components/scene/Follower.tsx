@@ -34,13 +34,15 @@ interface Props {
   onLoop?: () => void;
   /** disable click-select (e.g. conveyor parcels) */
   inert?: boolean;
+  /** machine whose maintenance status pauses this follower (defaults to its own id) */
+  statusId?: string;
   children: ReactNode;
 }
 
 /**
  * Moves its children along a path forever. Speed follows the global sim speed and per-unit boosts.
  */
-export function Follower({ id, type, label, sample, duration, offset = 0, onLoop, inert, children }: Props) {
+export function Follower({ id, type, label, sample, duration, offset = 0, onLoop, inert, statusId, children }: Props) {
   const ref = useRef<Group>(null);
   const ring = useRef<Group>(null);
   const progress = useRef(offset);
@@ -54,7 +56,7 @@ export function Follower({ id, type, label, sample, duration, offset = 0, onLoop
     if (!g) return;
     const s = useStore.getState();
     const boost = (s.boosts[id] ?? 0) > Date.now() ? 2 : 1;
-    const paused = s.schedules[id]?.inProgress;
+    const paused = s.schedules[statusId ?? id]?.inProgress;
     const next = progress.current + (paused ? 0 : (Math.min(dt, 0.1) * s.speed * boost) / duration);
     if (Math.floor(next) > Math.floor(progress.current) && onLoop) onLoop();
     progress.current = next;

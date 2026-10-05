@@ -16,6 +16,7 @@ const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
 
 export default function Game({ initial }: { initial: HydrateInput }) {
   const [focus, setFocus] = useState(false);
+  const ready = useStore((s) => s.layout !== null && s.auth?.warehouseId === initial.auth.warehouseId);
   const [tab, setTab] = useState<"overview" | "machine" | "missions" | "fleet" | null>(null);
 
   useEffect(() => {
@@ -29,6 +30,10 @@ export default function Game({ initial }: { initial: HydrateInput }) {
     useStore.getState().log("info", "Sistem online — semua unit siap beroperasi");
     return () => clearInterval(id);
   }, [initial]);
+
+  if (!ready) {
+    return <main className="grid h-dvh w-screen place-items-center bg-canvas text-sm text-ink/50">Memuat gudang…</main>;
+  }
 
   return (
     <main className="flex h-dvh w-screen flex-col bg-canvas">

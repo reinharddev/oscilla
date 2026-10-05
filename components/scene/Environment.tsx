@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { CanvasTexture, PlaneGeometry, SRGBColorSpace } from "three";
-import { FLOOR, RACK_BAYS, RACK_X0, TRUCK_BAYS, TRUCK_X, ZONES } from "@/lib/layout";
+import type { WarehouseLayout } from "@/lib/layout-schema";
 import { useStore } from "@/lib/store";
 import { PALETTE } from "@/lib/theme";
 import { BOX_COLORS, Parcel } from "./Models";
@@ -42,13 +42,13 @@ function Label({ position, text, color, anchor = "left" }: { position: [number, 
 
 const rnd = (n: number) => { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); };
 
-export function Rack({ z, row }: { z: number; row: number }) {
-  const bayW = 2, depth = 1.2, levels = 3, lh = 1.15;
-  const L = bayW * RACK_BAYS;
-  const cx = RACK_X0 + L / 2;
+export function Rack({ z, x0, bays, levels = 3, row }: { z: number; x0: number; bays: number; levels?: number; row: number }) {
+  const bayW = 2, depth = 1.2, lh = 1.15;
+  const L = bayW * bays;
+  const cx = x0 + L / 2;
   return (
     <group position={[cx, 0, z]}>
-      {Array.from({ length: RACK_BAYS + 1 }).map((_, i) =>
+      {Array.from({ length: bays + 1 }).map((_, i) =>
         [-1, 1].map((s) => (
           <mesh key={`${i}${s}`} castShadow position={[-L / 2 + i * bayW, (levels * lh) / 2 + 0.05, (s * (depth - 0.08)) / 2]}>
             <boxGeometry args={[0.09, levels * lh + 0.1, 0.09]} />
@@ -68,7 +68,7 @@ export function Rack({ z, row }: { z: number; row: number }) {
             <boxGeometry args={[L, 0.03, depth - 0.1]} />
             <meshStandardMaterial color="#e0e5f3" roughness={0.8} />
           </mesh>
-          {Array.from({ length: RACK_BAYS }).map((_, b) => {
+          {Array.from({ length: bays }).map((_, b) => {
             const seed = row * 100 + lv * 10 + b;
             const n = rnd(seed) > 0.12 ? (rnd(seed + 1) > 0.5 ? 2 : 1) : 0;
             return Array.from({ length: n }).map((__, k) => (
@@ -96,7 +96,8 @@ function ZoneOutline({ x, z, w, d, color }: { x: number; z: number; w: number; d
   );
 }
 
-export function Floor() {
+export function Floor({ layout }: { layout: WarehouseLayout }) {
+  const FLOOR = layout.floor, ZONES = layout.zones, TRUCK_X = layout.dock?.roadX ?? 13.7;
   const w = FLOOR.x1 - FLOOR.x0, d = FLOOR.z1 - FLOOR.z0, cx = (FLOOR.x0 + FLOOR.x1) / 2;
   const layers = useStore((s) => s.layers);
   const theme = useStore((s) => s.theme);
@@ -142,8 +143,8 @@ export function Floor() {
   );
 }
 
-export function Walls() {
-  const { x0, x1, z0, z1 } = FLOOR;
+export function Walls({ floor }: { floor: WarehouseLayout["floor"] }) {
+  const { x0, x1, z0, z1 } = floor;
   const P = PALETTE[useStore((st) => st.theme)];
   const H = 2.4;
   const mat = <meshStandardMaterial color={P.wall} roughness={0.8} />;
@@ -169,19 +170,20 @@ export function Walls() {
   );
 }
 
-export function Dock() {
+export function Dock({ dock }: { dock: NonNullable<WarehouseLayout["dock"]> }) {
   const labels = useStore((s) => s.layers.labels);
+  const zMin = Math.min(...dock.bays) - 2.5, zMax = Math.max(...dock.bays) + 2.5;
   return (
-    <group position={[12.4, 0, 0]}>
-      <mesh castShadow position={[0, 1.6, -0.5]}>
-        <boxGeometry args={[0.5, 0.25, 15]} />
+    <group position={[dock.wallX, 0, 0]}>
+      <mesh castShadow position={[0, 1.6, (zMin + zMax) / 2]}>
+        <boxGeometry args={[0.5, 0.25, zMax - zMin]} />
         <meshStandardMaterial color="#b7c0da" />
       </mesh>
-      {TRUCK_BAYS.map((z, i) => (
+      {dock.bays.map((z, i) => (
         <group key={z} position={[0, 0, z]}>
           <mesh position={[0, 0.7, 0]}>
             <boxGeometry args={[0.5, 1.4, 3]} />
-            <meshStandardMaterial color="#0b1022" />
+            <meshStandardMaterial color="#aab3d1" />
           </mesh>
           {[-1.6, 1.6].map((o) => (
             <mesh key={o} castShadow position={[0, 0.8, o]}>
@@ -197,9 +199,7 @@ export function Dock() {
             <boxGeometry args={[0.1, 0.1, 3]} />
             <meshStandardMaterial color="#b5eac9" emissive="#b5eac9" emissiveIntensity={0.3} />
           </mesh>
-          {labels && (
-            <Label position={[0.4, 2.3, 0]} text={`Bay ${i + 1}`} color="#b5eac9" anchor="center" />
-          )}
+          {labels && <Label position={[0.4, 2.3, 0]} text={`Bay ${i + 1}`} color="#b5eac9" anchor="center" />}
         </group>
       ))}
     </group>
@@ -207,14 +207,15 @@ export function Dock() {
 }
 
 /** Street + ceiling lamps, only rendered at night. */
-export function Lamps() {
+export function Lamps({ layout }: { layout: WarehouseLayout }) {
   const night = useStore((s) => s.theme === "night");
   if (!night) return null;
-  const spots: [number, number, number][] = [[16.6, 0, -14], [16.6, 0, -4], [16.6, 0, 6], [16.6, 0, 16]];
-  const ceiling: [number, number, number][] = [[-7, 4.2, -7], [-7, 4.2, -1], [-5, 4.2, 6.9]];
+  const roadX = (layout.dock?.roadX ?? 13.7) + 2.9;
+  const spots: [number, number][] = [[roadX, -14], [roadX, -4], [roadX, 6], [roadX, 16]];
+  const ceiling: [number, number, number][] = layout.zones.slice(0, 3).map((z) => [z.x, 4.2, z.z]);
   return (
     <group>
-      {spots.map(([x, , z], i) => (
+      {spots.map(([x, z], i) => (
         <group key={i} position={[x, 0, z]}>
           <mesh position={[0, 1.7, 0]}><cylinderGeometry args={[0.06, 0.08, 3.4, 8]} /><meshStandardMaterial color="#3a4672" /></mesh>
           <mesh position={[-0.5, 3.35, 0]}><boxGeometry args={[1.1, 0.1, 0.3]} /><meshStandardMaterial color="#3a4672" /></mesh>

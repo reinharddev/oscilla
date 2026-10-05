@@ -1,4 +1,4 @@
-import { FLEET } from "./layout";
+import type { EntityType } from "./layout";
 
 export type FaultKind = "bearing" | "overheat" | "battery";
 export type HealthStatus = "healthy" | "attention" | "critical";
@@ -10,8 +10,8 @@ export interface Health {
   hist: { vib: number[]; temp: number[]; cur: number[] };
 }
 
-export const MACHINES = FLEET.filter((f) => f.type === "forklift" || f.type === "agv" || f.type === "drone");
-export const isMachine = (id: string) => MACHINES.some((m) => m.id === id);
+/** A monitored asset: one row of the `assets` table. */
+export interface Machine { id: string; label: string; type: EntityType; serial: string }
 
 export const BASE = { vib: 2, temp: 52, cur: 8 };
 export const LIMIT = { vib: 4.5, temp: 75, cur: 10.5 };
@@ -38,11 +38,11 @@ export function readings(wear: number, fault: FaultKind, noise = 0) {
 }
 
 /** Deterministic seed (no Math.random) so server and client render the same first frame. */
-export function seedHealth(): Record<string, Health> {
+export function seedHealth(machines: Machine[], demoWear: Record<string, number> = {}): Record<string, Health> {
   const kinds: FaultKind[] = ["bearing", "overheat", "battery"];
   const out: Record<string, Health> = {};
-  MACHINES.forEach((m, i) => {
-    const wear = m.id === "fk-2" ? 0.52 : m.id === "agv-2" ? 0.31 : 0.04 + ((i * 7) % 9) / 100;
+  machines.forEach((m, i) => {
+    const wear = demoWear[m.serial] ?? 0.04 + ((i * 7) % 9) / 100;
     const fault = kinds[i % 3];
     const hist = { vib: [] as number[], temp: [] as number[], cur: [] as number[] };
     for (let t = 0; t < 30; t++) {

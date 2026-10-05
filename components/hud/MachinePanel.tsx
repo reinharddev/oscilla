@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { analysis, FAULT_LABEL, isMachine, LIMIT, MACHINES, rulDays, scoreOf, STATUS_LABEL, statusOf } from "@/lib/health";
+import { analysis, FAULT_LABEL, LIMIT, rulDays, scoreOf, STATUS_LABEL, statusOf } from "@/lib/health";
 import { canWrite, useStore } from "@/lib/store";
 import { Section } from "./ui";
 
@@ -40,16 +40,17 @@ function Reading({ label, unit, value, data, limit }: { label: string; unit: str
 const KIND_LABEL = { note: "Catatan", alert: "Peringatan", schedule: "Jadwal", start: "Mulai", done: "Selesai" } as const;
 
 export function MachinePanel() {
-  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth } = useStore();
+  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth, machines } = useStore();
   const writable = canWrite(auth);
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
   const [work, setWork] = useState("");
 
-  if (!selected || !isMachine(selected.id)) {
+  const machine = selected ? machines.find((m) => m.id === selected.id) : undefined;
+  if (!selected || !machine || !health[selected.id]) {
     return (
       <Section title="Detail mesin">
-        <p className="text-xs text-ink/55">Pilih forklift, AGV, atau drone di scene atau di tabel pemeliharaan untuk melihat kesehatan, jadwal, dan jurnalnya.</p>
+        <p className="text-xs text-ink/55">Pilih mesin di scene atau di tabel pemeliharaan untuk melihat kesehatan, jadwal, dan jurnalnya.</p>
       </Section>
     );
   }
@@ -62,6 +63,7 @@ export function MachinePanel() {
   return (
     <>
       <Section title={selected.label} aside={FAULT_LABEL[h.fault]}>
+        <div className="mb-3 text-xs text-ink/55">No. seri {machine.serial}</div>
         <div className="flex items-end justify-between">
           <div>
             <div className="text-xs text-ink/55">Skor kesehatan</div>
@@ -135,13 +137,14 @@ export function MachinePanel() {
 }
 
 export function MaintenanceTable() {
-  const { health, schedules, select, selected } = useStore();
+  const { health, schedules, select, selected, machines } = useStore();
   return (
     <Section title="Pemeliharaan" aside="Klik baris untuk detail">
       <div className="grid grid-cols-[1fr_44px_84px] px-2 pb-1 text-xs text-ink/45"><span>Mesin</span><span className="text-right">Skor</span><span className="text-right">Servis</span></div>
       <ul className="divide-y divide-rule border-y border-rule">
-        {MACHINES.map((m) => {
+        {machines.map((m) => {
           const h = health[m.id], sch = schedules[m.id];
+          if (!h || !sch) return null;
           const st = sch.inProgress ? "maintenance" : statusOf(h);
           const overdue = sch.due !== null && sch.due < Date.now() && !sch.inProgress;
           return (

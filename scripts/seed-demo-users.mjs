@@ -55,21 +55,12 @@ for (const u of USERS) {
 }
 
 // Service history, written with the service role so timestamps can be in the past.
-const { count } = await admin.from("journal_entries").select("id", { count: "exact", head: true });
-if (!count) {
-  const DAY = 86_400_000, now = Date.now();
-  const author = ids["technician@oscilla.example"];
-  const history = [
-    ["Forklift FK-01", 12, "Servis berkala 250 jam: ganti oli hidrolik, cek rantai mast."],
-    ["Forklift FK-02", 41, "Pelumasan roda depan. Teknisi mencatat getaran sedikit tinggi, pantau."],
-    ["Forklift FK-03", 20, "Ganti filter hidrolik."],
-    ["AGV Robot R1", 9, "Kalibrasi sensor lidar dan roda."],
-    ["AGV Robot R2", 33, "Update firmware navigasi v2.4."],
-    ["AGV Robot R3", 15, "Ganti sikat roda penggerak."],
-    ["Scan Drone D1", 7, "Ganti baling-baling dan kalibrasi gimbal."],
-    ["Scan Drone D2", 26, "Tes kapasitas baterai: 91%."],
-  ];
-  const { data: assets } = await admin.from("assets").select("id,name,org_id,warehouse_id").eq("warehouse_id", JKT);
+const DAY = 86_400_000, now = Date.now();
+async function seedHistory(warehouseId, authorEmail, history) {
+  const { count } = await admin.from("journal_entries").select("id", { count: "exact", head: true }).eq("warehouse_id", warehouseId);
+  if (count) { console.log(`journal for ${warehouseId.slice(-1)} already has data, skipped history`); return; }
+  const author = ids[authorEmail];
+  const { data: assets } = await admin.from("assets").select("id,name,org_id,warehouse_id").eq("warehouse_id", warehouseId);
   for (const [name, ago, text] of history) {
     const a = assets.find((x) => x.name === name);
     if (!a) throw new Error(`asset not found: ${name}`);
@@ -84,6 +75,25 @@ if (!count) {
     if (e1 || e2) throw new Error((e1 ?? e2).message);
   }
   console.log(`ok  seeded ${history.length} service history entries`);
-} else {
-  console.log("journal already has data, skipped history");
 }
+
+await seedHistory(JKT, "technician@oscilla.example", [
+  ["Forklift FK-01", 12, "Servis berkala 250 jam: ganti oli hidrolik, cek rantai mast."],
+  ["Forklift FK-02", 41, "Pelumasan roda depan. Teknisi mencatat getaran sedikit tinggi, pantau."],
+  ["Forklift FK-03", 20, "Ganti filter hidrolik."],
+  ["AGV Robot R1", 9, "Kalibrasi sensor lidar dan roda."],
+  ["AGV Robot R2", 33, "Update firmware navigasi v2.4."],
+  ["AGV Robot R3", 15, "Ganti sikat roda penggerak."],
+  ["Scan Drone D1", 7, "Ganti baling-baling dan kalibrasi gimbal."],
+  ["Scan Drone D2", 26, "Tes kapasitas baterai: 91%."],
+]);
+await seedHistory(SBY, "technician.sby@oscilla.example", [
+  ["AGV S1", 10, "Kalibrasi sensor tabrakan dan ganti roda belakang."],
+  ["AGV S2", 38, "Ganti motor penggerak kiri. Getaran masih sedikit tinggi, pantau."],
+  ["AGV S3", 18, "Update firmware navigasi dan uji jalur."],
+  ["AGV S4", 22, "Servis berkala: pelumasan dan pengencangan baut."],
+  ["Forklift S-FK1", 14, "Servis berkala 250 jam dan ganti filter udara."],
+  ["Scan Drone S-D1", 9, "Tes baterai dan kalibrasi kamera."],
+  ["Sorter Belt 1", 30, "Ganti bearing roller ke-12 dan setel ketegangan belt."],
+  ["Sorter Belt 2", 17, "Pelumasan rantai penggerak dan cek sabuk."],
+]);

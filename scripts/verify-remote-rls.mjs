@@ -46,7 +46,8 @@ await check("Surabaya technician sees only Surabaya and no Jakarta data", async 
   const a = (await techSby.from("assets").select("id,warehouse_id")).data;
   assert.equal(a.length, 8);
   assert.ok(a.every((x) => x.warehouse_id === "b0000000-0000-4000-8000-000000000002"));
-  assert.equal((await techSby.from("journal_entries").select("id")).data.length, 0);
+  const j = (await techSby.from("journal_entries").select("warehouse_id")).data;
+  assert.ok(j.length > 0 && j.every((x) => x.warehouse_id === "b0000000-0000-4000-8000-000000000002"), "journal must contain only Surabaya entries");
 });
 await check("viewer can read the journal but cannot write", async () => {
   assert.ok((await viewer.from("journal_entries").select("id")).data.length >= 8);

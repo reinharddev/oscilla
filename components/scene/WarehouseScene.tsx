@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { RACK_ROWS_Z } from "@/lib/layout";
 import { useStore } from "@/lib/store";
 import { PALETTE } from "@/lib/theme";
 import { Dock, Floor, Lamps, Rack, Walls } from "./Environment";
@@ -23,6 +22,7 @@ function FitZoom() {
 
 export default function WarehouseScene() {
   const P = PALETTE[useStore((s) => s.theme)];
+  const layout = useStore((s) => s.layout);
   return (
     <Canvas
       shadows
@@ -52,13 +52,17 @@ export default function WarehouseScene() {
       />
 
       <group position={[-1.5, 0, 0]}>
-        <Floor />
-        <Walls />
-        <Dock />
-        {RACK_ROWS_Z.map((z, i) => <Rack key={z} z={z} row={i} />)}
-        <Conveyors />
-        <Fleet />
-        <Lamps />
+        {layout && (
+          <>
+            <Floor layout={layout} />
+            <Walls floor={layout.floor} />
+            {layout.dock && <Dock dock={layout.dock} />}
+            {layout.racks.map((r, i) => <Rack key={`${r.x0}-${r.z}`} z={r.z} x0={r.x0} bays={r.bays} levels={r.levels} row={i} />)}
+            <Conveyors layout={layout} />
+            <Fleet layout={layout} />
+            <Lamps layout={layout} />
+          </>
+        )}
       </group>
 
       <OrbitControls

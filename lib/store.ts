@@ -1,22 +1,26 @@
 import { create } from "zustand";
-import { EntityType, FLEET } from "./layout";
+import type { EntityType } from "./layout";
+import type { WarehouseLayout } from "./layout-schema";
 import type { Theme } from "./theme";
 import { createClient } from "./supabase/client";
-import { Health, MACHINES, readings, seedHealth, statusOf, STATUS_LABEL, FAULT_LABEL } from "./health";
+import { Health, Machine, readings, seedHealth, statusOf, STATUS_LABEL, FAULT_LABEL } from "./health";
 
 export interface Selected { id: string; type: EntityType; label: string }
+export interface EntityInfo { id: string; label: string; type: EntityType }
 export interface LogEvent { id: number; time: string; kind: "info" | "success" | "warn" | "level"; text: string }
 export type Metric = "delivered" | "pallets" | "trucks" | "boosts";
 export interface Mission { id: number; title: string; metric: Metric; goal: number; base: number; xp: number; coins: number }
 export interface Order { id: string; customer: string; items: number; status: "Picking" | "Packed" | "Shipped" }
 export type Role = "admin" | "manager" | "technician" | "viewer";
-export interface AuthInfo { userId: string; email: string; name: string; role: Role; orgName: string; warehouseName: string }
+export interface AuthInfo { userId: string; email: string; name: string; role: Role; orgName: string; warehouseName: string; warehouseId: string }
 export interface Schedule { due: number | null; lastDone: number | null; inProgress: boolean; workOrderId?: string }
 export interface JournalEntry { id: string; ts: number; kind: "note" | "alert" | "schedule" | "start" | "done"; text: string; author?: string }
 export interface HydrateInput {
   auth: AuthInfo;
   names: Record<string, string>;
-  assets: { id: string; name: string; org_id: string; warehouse_id: string }[];
+  warehouses: { id: string; name: string }[];
+  layout: WarehouseLayout;
+  assets: { id: string; name: string; serial_number: string; type: EntityType; org_id: string; warehouse_id: string }[];
   journal: { id: string; asset_id: string; author_id: string; kind: JournalEntry["kind"]; body: string; created_at: string }[];
   workOrders: { id: string; asset_id: string; status: string; due_at: string | null; completed_at: string | null }[];
 }
@@ -60,7 +64,10 @@ interface State {
   schedules: Record<string, Schedule>;
   journal: Record<string, JournalEntry[]>;
   auth: AuthInfo | null;
-  assetIds: Record<string, string>; // machine id -> database asset id
+  machines: Machine[];
+  entities: EntityInfo[];
+  layout: WarehouseLayout | null;
+  warehouses: { id: string; name: string }[];
   assetMeta: Record<string, { org_id: string; warehouse_id: string }>;
 
   hydrate: (init: HydrateInput) => void;
@@ -99,8 +106,8 @@ const toEntry = (j: HydrateInput["journal"][number], names: Record<string, strin
 /** Insert a journal row (RLS decides whether this user may) and show it locally. */
 async function addEntry(get: Get, set: Set, id: string, kind: JournalEntry["kind"], text: string) {
   const s = get();
-  const assetId = s.assetIds[id];
-  const meta = assetId ? s.assetMeta[assetId] : undefined;
+  const assetId = id;
+  const meta = s.assetMeta[assetId];
   if (!meta) return;
   const { data, error } = await createClient()
     .from("journal_entries")
@@ -127,8 +134,8 @@ export const useStore = create<State>((set, get) => ({
   counters: { ...zeroCounters },
   ordersToday: 1284, shipped: 1127,
   series: [34, 41, 38, 52, 47, 58, 49, 61, 55, 63, 59, 70, 64, 72, 66, 75, 69, 78, 71, 80, 74, 69, 77, 83, 79, 86, 81, 88, 84, 90],
-  zones: { A: 78, B: 54, P: 41, D: 63 },
-  fleet: Object.fromEntries(FLEET.map((f, i) => [f.id, { battery: 62 + ((i * 17) % 36), status: "active" as const }])),
+  zones: {},
+  fleet: {},
   orders: [
     { id: "SO-4815", customer: "Shopee", items: 6, status: "Shipped" },
     { id: "SO-4816", customer: "Tokopedia", items: 2, status: "Packed" },
@@ -139,48 +146,58 @@ export const useStore = create<State>((set, get) => ({
   events: [],
   missions: [mkMission(0, zeroCounters), mkMission(1, zeroCounters), mkMission(2, zeroCounters)],
   levelUp: null,
-  health: seedHealth(),
-  schedules: Object.fromEntries(MACHINES.map((m) => [m.id, { due: null, lastDone: null, inProgress: false }])),
-  journal: Object.fromEntries(MACHINES.map((m) => [m.id, []])),
+  health: {},
+  schedules: {},
+  journal: {},
 
   auth: null,
-  assetIds: {},
+  machines: [],
+  entities: [],
+  layout: null,
+  warehouses: [],
   assetMeta: {},
 
   hydrate: (init) => {
-    const byName = new Map(init.assets.map((a) => [a.name, a]));
-    const assetIds: Record<string, string> = {};
+    const machines: Machine[] = init.assets.map((a) => ({ id: a.id, label: a.name, type: a.type, serial: a.serial_number }));
+    const actors: EntityInfo[] = init.layout.entities
+      .filter((e) => !e.serial)
+      .map((e) => ({ id: e.id!, label: e.label ?? e.id!, type: e.model }));
+    const entities: EntityInfo[] = [...machines.map(({ id, label, type }) => ({ id, label, type })), ...actors];
+    const demoWear = Object.fromEntries(
+      init.layout.entities.filter((e) => e.serial && e.demoWear !== undefined).map((e) => [e.serial!, e.demoWear!]),
+    );
     const assetMeta: Record<string, { org_id: string; warehouse_id: string }> = {};
     const journal: Record<string, JournalEntry[]> = {};
     const schedules: Record<string, Schedule> = {};
-    for (const m of MACHINES) {
-      journal[m.id] = [];
-      schedules[m.id] = { due: null, lastDone: null, inProgress: false };
-      const a = byName.get(m.label);
-      if (!a) continue;
-      assetIds[m.id] = a.id;
+    for (const a of init.assets) {
       assetMeta[a.id] = { org_id: a.org_id, warehouse_id: a.warehouse_id };
-      journal[m.id] = init.journal.filter((j) => j.asset_id === a.id).map((j) => toEntry(j, init.names)).sort((x, y) => y.ts - x.ts);
+      journal[a.id] = init.journal.filter((j) => j.asset_id === a.id).map((j) => toEntry(j, init.names)).sort((x, y) => y.ts - x.ts);
       const orders = init.workOrders.filter((w) => w.asset_id === a.id);
       const open = orders.find((w) => w.status === "in_progress");
       const planned = orders
         .filter((w) => w.status === "scheduled" && w.due_at)
         .sort((x, y) => Date.parse(x.due_at!) - Date.parse(y.due_at!))[0];
       const done = orders.filter((w) => w.status === "done" && w.completed_at).map((w) => Date.parse(w.completed_at!));
-      schedules[m.id] = {
+      schedules[a.id] = {
         due: planned?.due_at ? Date.parse(planned.due_at) : null,
         lastDone: done.length ? Math.max(...done) : null,
         inProgress: Boolean(open),
         workOrderId: open?.id ?? planned?.id,
       };
     }
-    set({ auth: init.auth, assetIds, assetMeta, journal, schedules });
+    set({
+      auth: init.auth, layout: init.layout, warehouses: init.warehouses, machines, entities, assetMeta, journal, schedules,
+      health: seedHealth(machines, demoWear),
+      fleet: Object.fromEntries(entities.map((f, i) => [f.id, { battery: 62 + ((i * 17) % 36), status: "active" as const }])),
+      zones: Object.fromEntries(init.layout.zones.map((z, i) => [z.id, 40 + ((i * 17) % 45)])),
+      selected: null, boosts: {}, events: [],
+    });
   },
 
   scheduleMaintenance: async (id, due) => {
     const s = get();
-    const assetId = s.assetIds[id];
-    const meta = assetId ? s.assetMeta[assetId] : undefined;
+    const assetId = id;
+    const meta = s.assetMeta[assetId];
     if (!meta) return;
     const { data, error } = await createClient()
       .from("work_orders")
@@ -194,8 +211,8 @@ export const useStore = create<State>((set, get) => ({
 
   startMaintenance: async (id) => {
     const s = get();
-    const assetId = s.assetIds[id];
-    const meta = assetId ? s.assetMeta[assetId] : undefined;
+    const assetId = id;
+    const meta = s.assetMeta[assetId];
     if (!meta) return;
     const sb = createClient();
     const now = new Date().toISOString();
@@ -214,7 +231,7 @@ export const useStore = create<State>((set, get) => ({
     }
     set((st) => ({ schedules: { ...st.schedules, [id]: { ...st.schedules[id], inProgress: true, workOrderId } } }));
     await addEntry(get, set, id, "start", "Maintenance dimulai, unit dihentikan dari operasi.");
-    get().log("info", `${MACHINES.find((m) => m.id === id)?.label} masuk maintenance`);
+    get().log("info", `${get().machines.find((m) => m.id === id)?.label} masuk maintenance`);
   },
 
   completeMaintenance: async (id, note) => {
@@ -236,7 +253,7 @@ export const useStore = create<State>((set, get) => ({
     }));
     await addEntry(get, set, id, "done", text);
     get().addXp(35, 15);
-    get().log("success", `${MACHINES.find((m) => m.id === id)?.label} selesai maintenance · +35 XP`);
+    get().log("success", `${get().machines.find((m) => m.id === id)?.label} selesai maintenance · +35 XP`);
   },
 
   addNote: async (id, text) => {
@@ -283,7 +300,7 @@ export const useStore = create<State>((set, get) => ({
     if (s.coins < BOOST_COST) return false;
     set({ coins: s.coins - BOOST_COST, boosts: { ...s.boosts, [id]: Date.now() + BOOST_MS }, counters: { ...s.counters, boosts: s.counters.boosts + 1 } });
     s.addXp(10);
-    s.log("info", `Boost 2× aktif pada ${FLEET.find((f) => f.id === id)?.label ?? id}`);
+    s.log("info", `Boost 2× aktif pada ${s.entities.find((f) => f.id === id)?.label ?? id}`);
     return true;
   },
 
@@ -306,8 +323,9 @@ export const useStore = create<State>((set, get) => ({
     const series = [...s.series.slice(1), Math.min(99, 45 + rate * 6 + Math.random() * 10)];
 
     const fleet = { ...s.fleet };
-    for (const f of FLEET) {
+    for (const f of s.entities) {
       const st = fleet[f.id];
+      if (!st) continue;
       if (st.status === "charging") {
         const b = Math.min(100, st.battery + 4 * k);
         fleet[f.id] = { battery: b, status: b >= 90 ? "active" : "charging" };
@@ -322,8 +340,9 @@ export const useStore = create<State>((set, get) => ({
 
     const health = { ...s.health };
     const journal = { ...s.journal };
-    for (const m of MACHINES) {
+    for (const m of s.machines) {
       const h = health[m.id];
+      if (!h) continue;
       if (s.schedules[m.id]?.inProgress) continue;
       const before = statusOf(h);
       const wear = Math.min(0.99, h.wear + 0.0009 * k * (0.7 + Math.random() * 0.6));

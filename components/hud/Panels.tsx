@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, Minus, Zap } from "lucide-react";
-import { FLEET, ZONES } from "@/lib/layout";
 import { useStore } from "@/lib/store";
 import { MachinePanel, MaintenanceTable } from "./MachinePanel";
 import { Bar, Section } from "./ui";
@@ -17,17 +16,17 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
 }
 
 export function Kpis() {
-  const { ordersToday, shipped, series, fleet, zones } = useStore();
+  const { ordersToday, shipped, series, fleet, zones, entities } = useStore();
   const per = Math.round(series[series.length - 1] * 2.4);
   const active = Object.values(fleet).filter((f) => f.status === "active").length;
-  const fill = Math.round(Object.values(zones).reduce((a, b) => a + b, 0) / 4);
+  const fill = Math.round(Object.values(zones).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(zones).length));
   return (
     <Section title="Operasi hari ini" aside="Live">
       <div className="grid grid-cols-2 gap-x-4 gap-y-5">
         <Stat label="Orders" value={ordersToday.toLocaleString("en-US")} sub="+12.4% vs kemarin" />
         <Stat label="Terkirim" value={shipped.toLocaleString("en-US")} sub={`${Math.round((shipped / ordersToday) * 100)}% fulfillment`} />
         <Stat label="Throughput" value={`${per}/jam`} sub="parcel per jam" />
-        <Stat label="Armada aktif" value={`${active}/${FLEET.length}`} sub={`Gudang terisi ${fill}%`} />
+        <Stat label="Armada aktif" value={`${active}/${entities.length}`} sub={`Gudang terisi ${fill}%`} />
       </div>
     </Section>
   );
@@ -49,13 +48,14 @@ export function Throughput() {
 
 export function Zones() {
   const zones = useStore((s) => s.zones);
+  const layoutZones = useStore((s) => s.layout?.zones ?? []);
   return (
     <Section title="Kapasitas zona">
       <div className="space-y-3">
-        {ZONES.map((z) => (
+        {layoutZones.map((z) => (
           <div key={z.id}>
-            <div className="mb-1 flex justify-between text-xs"><span>{z.name}</span><span className="text-ink/60">{Math.round(zones[z.id])}%</span></div>
-            <Bar value={zones[z.id]} warn={zones[z.id] >= 90} />
+            <div className="mb-1 flex justify-between text-xs"><span>{z.name}</span><span className="text-ink/60">{Math.round(zones[z.id] ?? 0)}%</span></div>
+            <Bar value={zones[z.id] ?? 0} warn={(zones[z.id] ?? 0) >= 90} />
           </div>
         ))}
       </div>
@@ -130,15 +130,16 @@ export function Missions() {
 }
 
 export function Fleet() {
-  const { fleet, select, selected, boosts } = useStore();
+  const { fleet, select, selected, boosts, entities } = useStore();
   return (
     <Section title="Armada" aside="Klik baris untuk memilih">
       <div className="grid grid-cols-[1fr_64px_44px] px-2 pb-1 text-xs text-ink/45">
         <span>Unit</span><span>Status</span><span className="text-right">Baterai</span>
       </div>
       <ul className="divide-y divide-rule border-y border-rule">
-        {FLEET.map((f) => {
+        {entities.map((f) => {
           const st = fleet[f.id];
+          if (!st) return null;
           const boosted = (boosts[f.id] ?? 0) > Date.now();
           return (
             <li key={f.id}>
