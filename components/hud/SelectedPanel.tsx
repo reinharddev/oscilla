@@ -1,21 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bot, Drone, Forklift, HardHat, Package, Truck, X, Zap } from "lucide-react";
+import { Bot, Drone, Forklift, HardHat, Package, Truck, X } from "lucide-react";
 import { useT } from "@/lib/i18n/use-t";
 import type { Key } from "@/lib/i18n";
-import { BOOST_COST, useStore } from "@/lib/store";
+import { useStore } from "@/lib/store";
 
 const ICON: Record<string, React.ComponentType<{ size?: number; strokeWidth?: number }>> = { forklift: Forklift, agv: Bot, drone: Drone, worker: HardHat, truck: Truck, conveyor: Package };
 export function SelectedPanel() {
   const t = useT();
-  const { selected, boosts, coins, boost, fleet, select } = useStore();
-  const [, force] = useState(0);
-  useEffect(() => { const id = setInterval(() => force((n) => n + 1), 500); return () => clearInterval(id); }, []);
+  const { selected, fleet, select } = useStore();
   if (!selected) return null;
 
   const Icon = ICON[selected.type];
-  const left = Math.max(0, Math.ceil(((boosts[selected.id] ?? 0) - Date.now()) / 1000));
   const f = fleet[selected.id];
 
   return (
@@ -30,17 +26,6 @@ export function SelectedPanel() {
           </div>
         )}
       </div>
-      {left > 0 ? (
-        <div className="shrink-0 text-xs text-ink/70"><span className="font-semibold text-ink">{t("sel.boostActive", { s: left })}</span></div>
-      ) : (
-        <button
-          disabled={coins < BOOST_COST}
-          onClick={() => boost(selected.id)}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-ui bg-accent px-3 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Zap size={13} fill="currentColor" /> {t("sel.boost", { cost: BOOST_COST })}
-        </button>
-      )}
       <button onClick={() => select(null)} className="shrink-0 p-1 text-ink/45 transition-colors duration-150 hover:text-ink" aria-label={t("sel.close")}><X size={16} /></button>
     </div>
   );

@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Coins, LogOut, Moon, Pause, Sun } from "lucide-react";
+import { LogOut, Moon, Pause, Sun } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { dateLocale, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
-import { levelFromXp, useStore, xpForLevel } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { LangSwitch } from "./LangSwitch";
 
 function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -22,7 +22,7 @@ function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; c
 }
 
 export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void }) {
-  const { demo, xp, coins, speed, layers, theme, auth, warehouses, setSpeed, setTheme, toggleLayer } = useStore();
+  const { demo, speed, layers, theme, auth, warehouses, setSpeed, setTheme, toggleLayer } = useStore();
   const router = useRouter();
   const t = useT();
   const lang = useLang();
@@ -34,10 +34,6 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
     return () => clearInterval(id);
   }, [lang]);
   const role = (r: string) => t(`role.${r}` as Key);
-
-  const lvl = levelFromXp(xp);
-  const lo = xpForLevel(lvl), hi = xpForLevel(lvl + 1);
-  const pct = ((xp - lo) / (hi - lo)) * 100;
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 whitespace-nowrap px-3 md:gap-6 border-b border-rule bg-surface">
@@ -56,19 +52,6 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
           <span className="hidden text-xs text-ink/55 sm:inline">{auth?.warehouseName}</span>
         )}
         <span className="hidden text-xs text-ink/55 xl:inline">{clock}</span>
-      </div>
-
-      <div className="hidden items-center gap-3 xl:flex">
-        <span className="text-xs text-ink/55">{t("top.level")}</span>
-        <span className="text-sm font-semibold">{lvl}</span>
-        <div className="h-1 w-28 bg-ink/10"><div className="h-full bg-accent transition-[width] duration-300" style={{ width: `${pct}%` }} /></div>
-        <span className="text-xs text-ink/55">{t("top.xp", { xp, hi })}</span>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="text-xs text-ink/55 xl:hidden">{t("top.lv", { n: lvl })}</span>
-        <Coins size={14} className="text-ink/55" />
-        <span className="text-sm font-semibold">{coins}</span>
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">

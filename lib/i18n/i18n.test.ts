@@ -21,8 +21,8 @@ describe("catalogs", () => {
 
 describe("translate", () => {
   it("fills placeholders and keeps unknown ones visible", () => {
-    expect(translate("en", "top.lv", { n: 3 })).toBe("Lv 3");
+    expect(translate("en", "mach.rul", { n: 3 })).toBe("Remaining life ≈ 3 days");
     expect(translate("id", "mach.rul", { n: 6 })).toBe("Sisa umur ≈ 6 hari");
-    expect(translate("en", "top.lv")).toBe("Lv {n}");
+    expect(translate("en", "mach.rul")).toBe("Remaining life ≈ {n} days");
   });
 });

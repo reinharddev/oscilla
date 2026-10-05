@@ -6,11 +6,10 @@ import { makeT } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/use-t";
 import { useStore, type HydrateInput } from "@/lib/store";
 import { TopBar } from "./hud/TopBar";
-import { Activity, Fleet, LeftColumn, Missions, OverviewPanels, RightColumn } from "./hud/Panels";
+import { Activity, Fleet, LeftColumn, OverviewPanels, RightColumn } from "./hud/Panels";
 import { AgentPanel } from "./hud/AgentPanel";
 import { MachinePanel, MaintenanceTable } from "./hud/MachinePanel";
 import { SelectedPanel } from "./hud/SelectedPanel";
-import { LevelToast } from "./hud/LevelToast";
 import { DemoPanel } from "./hud/DemoPanel";
 
 const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
@@ -18,11 +17,11 @@ const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
   loading: () => <div className="absolute inset-0 grid place-items-center text-sm text-ink/50">Loading warehouse…</div>,
 });
 
-export default function Game({ initial }: { initial: HydrateInput }) {
+export default function Workspace({ initial }: { initial: HydrateInput }) {
   const t = useT();
   const [focus, setFocus] = useState(false);
   const ready = useStore((s) => s.layout !== null && s.auth?.warehouseId === initial.auth.warehouseId);
-  const [tab, setTab] = useState<"overview" | "machine" | "agent" | "missions" | "fleet" | null>(null);
+  const [tab, setTab] = useState<"overview" | "machine" | "agent" | "fleet" | null>(null);
   const requestTab = useStore((s) => s.requestTab);
   useEffect(() => { if (requestTab) setTab(requestTab.tab); }, [requestTab]);
 
@@ -68,7 +67,7 @@ export default function Game({ initial }: { initial: HydrateInput }) {
   }, [initial]);
 
   if (!ready) {
-    return <main className="grid h-dvh w-screen place-items-center bg-canvas text-sm text-ink/50">{makeT(initial.locale)("game.loading")}</main>;
+    return <main className="grid h-dvh w-screen place-items-center bg-canvas text-sm text-ink/50">{makeT(initial.locale)("ws.loading")}</main>;
   }
 
   return (
@@ -83,22 +82,21 @@ export default function Game({ initial }: { initial: HydrateInput }) {
           </div>
           <DemoPanel />
           <p className="pointer-events-none absolute right-4 top-3 hidden text-xs text-ink/45 md:block">
-            {t("game.hint")}
+            {t("ws.hint")}
           </p>
           {tab && (
             <div className="scroll-thin absolute inset-x-0 bottom-0 top-[38%] overflow-y-auto border-t border-rule bg-surface lg:hidden">
               {tab === "overview" && <OverviewPanels />}
               {tab === "machine" && <><MachinePanel /><MaintenanceTable /></>}
               {tab === "agent" && <AgentPanel />}
-              {tab === "missions" && <Missions />}
               {tab === "fleet" && <><Fleet /><Activity /></>}
             </div>
           )}
         </div>
         {!focus && <RightColumn />}
       </div>
-      <nav aria-label={t("tab.panel")} className="grid h-12 shrink-0 grid-cols-6 border-t border-rule bg-surface text-xs lg:hidden">
-        {([["overview", t("tab.overview")], ["machine", t("tab.machine")], ["agent", t("tab.ask")], ["missions", t("tab.missions")], ["fleet", t("tab.fleet")]] as const).map(([k, label]) => (
+      <nav aria-label={t("tab.panel")} className="grid h-12 shrink-0 grid-cols-5 border-t border-rule bg-surface text-xs lg:hidden">
+        {([["overview", t("tab.overview")], ["machine", t("tab.machine")], ["agent", t("tab.ask")], ["fleet", t("tab.fleet")]] as const).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab((cur) => (cur === k ? null : k))}
@@ -110,7 +108,6 @@ export default function Game({ initial }: { initial: HydrateInput }) {
         ))}
         <button onClick={() => setTab(null)} className="border-l border-rule text-ink/60 transition-colors duration-150 hover:bg-ink/5">{t("tab.scene")}</button>
       </nav>
-      <LevelToast />
     </main>
   );
 }

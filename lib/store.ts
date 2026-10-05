@@ -8,9 +8,7 @@ import { fmtDateTime, LOCALE_COOKIE, translate, type Key, type Lang, type MsgPar
 
 export interface Selected { id: string; type: EntityType; label: string }
 export interface EntityInfo { id: string; label: string; type: EntityType }
-export interface LogEvent { id: number; at: number; kind: "info" | "success" | "warn" | "level"; key: Key; params?: MsgParams }
-export type Metric = "delivered" | "pallets" | "trucks" | "boosts";
-export interface Mission { id: number; metric: Metric; goal: number; base: number; xp: number; coins: number }
+export interface LogEvent { id: number; at: number; kind: "info" | "success" | "warn" ; key: Key; params?: MsgParams }
 export interface Order { id: string; customer: string; items: number; status: "Picking" | "Packed" | "Shipped" }
 export type Role = "admin" | "manager" | "technician" | "viewer";
 export interface AuthInfo { userId: string; email: string; name: string; role: Role; orgName: string; warehouseName: string; warehouseId: string }
@@ -25,7 +23,7 @@ export interface DemoState {
   skipped: boolean;
   dueAt?: number;
 }
-export type UiTab = "overview" | "machine" | "agent" | "missions" | "fleet" | null;
+export type UiTab = "overview" | "machine" | "agent" | "fleet" | null;
 export interface HydrateInput {
   locale: Lang;
   auth: AuthInfo;
@@ -44,20 +42,9 @@ export type AnalysisResult =
 export const canWrite = (a: AuthInfo | null) => a?.role === "admin" || a?.role === "manager" || a?.role === "technician";
 export interface FleetState { battery: number; status: "active" | "charging" }
 
-export const levelFromXp = (xp: number) => Math.floor(Math.sqrt(xp / 60)) + 1;
-export const xpForLevel = (lvl: number) => (lvl - 1) * (lvl - 1) * 60;
-
-const MISSION_POOL: Omit<Mission, "id" | "base">[] = [
-  { metric: "delivered", goal: 12, xp: 80, coins: 40 },
-  { metric: "pallets", goal: 4, xp: 100, coins: 55 },
-  { metric: "trucks", goal: 2, xp: 140, coins: 80 },
-  { metric: "boosts", goal: 2, xp: 90, coins: 60 },
-];
-
 const CUSTOMERS = ["Tokopedia", "Shopee", "Lazada", "Blibli", "Bukalapak", "JD.ID", "Zalora", "Sociolla"];
 let eventId = 1;
 let orderSeq = 4820;
-let missionSeq = 1;
 
 interface State {
   speed: number;
@@ -65,17 +52,12 @@ interface State {
   locale: Lang;
   layers: { paths: boolean; labels: boolean; zones: boolean };
   selected: Selected | null;
-  boosts: Record<string, number>; // id -> expiry (ms)
-  xp: number; coins: number;
-  counters: Record<Metric, number>;
   ordersToday: number; shipped: number;
   series: number[];
   zones: Record<string, number>;
   fleet: Record<string, FleetState>;
   orders: Order[];
   events: LogEvent[];
-  missions: Mission[];
-  levelUp: number | null;
   health: Record<string, Health>;
   schedules: Record<string, Schedule>;
   journal: Record<string, JournalEntry[]>;
@@ -112,21 +94,12 @@ interface State {
   setLocale: (l: Lang) => void;
   toggleLayer: (k: "paths" | "labels" | "zones") => void;
   select: (s: Selected | null) => void;
-  boost: (id: string) => boolean;
-  addXp: (xp: number, coins?: number) => void;
   log: (kind: LogEvent["kind"], key: Key, params?: MsgParams) => void;
   deliver: () => void;
   pallet: () => void;
   truckServed: (label: string) => void;
-  claim: (id: number) => void;
   tick: () => void;
 }
-
-const mkMission = (i: number, base: Record<Metric, number>, scale = 1): Mission => {
-  const p = MISSION_POOL[i % MISSION_POOL.length];
-  const goal = Math.round(p.goal * scale);
-  return { id: missionSeq++, metric: p.metric, goal, base: base[p.metric], xp: Math.round(p.xp * scale), coins: Math.round(p.coins * scale) };
-};
 
 type Get = () => State;
 type Set = (p: Partial<State> | ((s: State) => Partial<State>)) => void;
@@ -151,20 +124,12 @@ async function addEntry(get: Get, set: Set, id: string, kind: JournalEntry["kind
   set((st) => ({ journal: { ...st.journal, [id]: [entry, ...(st.journal[id] ?? [])] } }));
 }
 
-const zeroCounters: Record<Metric, number> = { delivered: 0, pallets: 0, trucks: 0, boosts: 0 };
-
-export const BOOST_COST = 25;
-export const BOOST_MS = 30_000;
-
 export const useStore = create<State>((set, get) => ({
   speed: 1,
   theme: "day",
   locale: "en",
   layers: { paths: false, labels: true, zones: true },
   selected: null,
-  boosts: {},
-  xp: 0, coins: 60,
-  counters: { ...zeroCounters },
   ordersToday: 1284, shipped: 1127,
   series: [34, 41, 38, 52, 47, 58, 49, 61, 55, 63, 59, 70, 64, 72, 66, 75, 69, 78, 71, 80, 74, 69, 77, 83, 79, 86, 81, 88, 84, 90],
   zones: {},
@@ -177,8 +142,6 @@ export const useStore = create<State>((set, get) => ({
     { id: "SO-4819", customer: "Zalora", items: 1, status: "Picking" },
   ],
   events: [],
-  missions: [mkMission(0, zeroCounters), mkMission(1, zeroCounters), mkMission(2, zeroCounters)],
-  levelUp: null,
   health: {},
   schedules: {},
   journal: {},
@@ -229,7 +192,7 @@ export const useStore = create<State>((set, get) => ({
       health: seedHealth(machines, demoWear),
       fleet: Object.fromEntries(entities.map((f, i) => [f.id, { battery: 62 + ((i * 17) % 36), status: "active" as const }])),
       zones: Object.fromEntries(init.layout.zones.map((z, i) => [z.id, 40 + ((i * 17) % 45)])),
-      selected: null, boosts: {}, events: [],
+      selected: null, events: [],
     });
   },
 
@@ -350,7 +313,6 @@ export const useStore = create<State>((set, get) => ({
       health: { ...st.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] }, analysis: undefined } },
     }));
     await addEntry(get, set, id, "done", text);
-    get().addXp(35, 15);
     get().log("success", "log.maintDone", { name: get().machines.find((m) => m.id === id)?.label ?? id });
   },
 
@@ -375,54 +337,18 @@ export const useStore = create<State>((set, get) => ({
 
   log: (kind, key, params) => set((s) => ({ events: [{ id: eventId++, at: Date.now(), kind, key, params }, ...s.events].slice(0, 30) })),
 
-  addXp: (xp, coins = 0) => {
-    const before = levelFromXp(get().xp);
-    const nxp = get().xp + xp;
-    const after = levelFromXp(nxp);
-    set((s) => ({ xp: nxp, coins: s.coins + coins, levelUp: after > before ? Date.now() : s.levelUp }));
-    if (after > before) get().log("level", "log.levelUp", { n: after });
-  },
-
-  deliver: () => {
-    set((s) => ({ counters: { ...s.counters, delivered: s.counters.delivered + 1 }, ordersToday: s.ordersToday + 1 }));
-    get().addXp(4, 1);
-  },
-  pallet: () => {
-    set((s) => ({ counters: { ...s.counters, pallets: s.counters.pallets + 1 } }));
-    get().addXp(12, 3);
-    if (get().counters.pallets % 3 === 0) get().log("info", "log.pallet", { n: get().counters.pallets });
-  },
+  deliver: () => set((s) => ({ ordersToday: s.ordersToday + 1 })),
+  pallet: () => {},
   truckServed: (label) => {
-    set((s) => ({ counters: { ...s.counters, trucks: s.counters.trucks + 1 }, shipped: s.shipped + 18 }));
-    get().addXp(45, 20);
+    set((s) => ({ shipped: s.shipped + 18 }));
     get().log("success", "log.truckServed", { name: label });
-  },
-
-  boost: (id) => {
-    const s = get();
-    if (s.coins < BOOST_COST) return false;
-    set({ coins: s.coins - BOOST_COST, boosts: { ...s.boosts, [id]: Date.now() + BOOST_MS }, counters: { ...s.counters, boosts: s.counters.boosts + 1 } });
-    s.addXp(10);
-    s.log("info", "log.boost", { name: s.entities.find((f) => f.id === id)?.label ?? id });
-    return true;
-  },
-
-  claim: (id) => {
-    const s = get();
-    const m = s.missions.find((x) => x.id === id);
-    if (!m || s.counters[m.metric] - m.base < m.goal) return;
-    const scale = 1 + Math.floor(levelFromXp(s.xp) / 3) * 0.4;
-    const idx = MISSION_POOL.findIndex((p) => p.metric === m.metric);
-    set({ missions: s.missions.map((x) => (x.id === id ? mkMission(idx + 1 + Math.floor(Math.random() * 3), s.counters, scale) : x)) });
-    s.addXp(m.xp, m.coins);
-    s.log("success", "log.missionDone", { title: translate(s.locale, `mission.${m.metric}` as Key, { n: m.goal }), xp: m.xp, coins: m.coins });
   },
 
   tick: () => {
     const s = get();
     if (s.speed === 0) return;
     const k = s.speed;
-    const rate = Math.round((3 + Math.random() * 5) * k + Object.keys(s.boosts).filter((b) => s.boosts[b] > Date.now()).length);
+    const rate = Math.round((3 + Math.random() * 5) * k);
     const series = [...s.series.slice(1), Math.min(99, 45 + rate * 6 + Math.random() * 10)];
 
     const fleet = { ...s.fleet };

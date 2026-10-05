@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import Game from "@/components/Game";
+import Workspace from "@/components/Workspace";
 import NoLayout from "@/components/NoLayout";
 import { getLang } from "@/lib/i18n/server";
 import { makeT } from "@/lib/i18n";
@@ -55,5 +55,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ w
     journal: journal.data ?? [],
     workOrders: orders.data ?? [],
   };
-  return <Game key={warehouse.id} initial={initial} />;
+  return <Workspace key={warehouse.id} initial={initial} />;
 }

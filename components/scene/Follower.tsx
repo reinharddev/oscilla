@@ -40,7 +40,7 @@ interface Props {
 }
 
 /**
- * Moves its children along a path forever. Speed follows the global sim speed and per-unit boosts.
+ * Moves its children along a path forever. Speed follows the global sim speed.
  */
 export function Follower({ id, type, label, sample, duration, offset = 0, onLoop, inert, statusId, children }: Props) {
   const ref = useRef<Group>(null);
@@ -55,9 +55,8 @@ export function Follower({ id, type, label, sample, duration, offset = 0, onLoop
     const g = ref.current;
     if (!g) return;
     const s = useStore.getState();
-    const boost = (s.boosts[id] ?? 0) > Date.now() ? 2 : 1;
     const paused = s.schedules[statusId ?? id]?.inProgress;
-    const next = progress.current + (paused ? 0 : (Math.min(dt, 0.1) * s.speed * boost) / duration);
+    const next = progress.current + (paused ? 0 : (Math.min(dt, 0.1) * s.speed) / duration);
     if (Math.floor(next) > Math.floor(progress.current) && onLoop) onLoop();
     progress.current = next;
     sample(next - Math.floor(next), pose);

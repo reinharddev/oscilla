@@ -1,6 +1,5 @@
 "use client";
 
-import { Check, Minus, Zap } from "lucide-react";
 import { fmtTime, renderMsg, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
@@ -92,54 +91,9 @@ export function Orders() {
   );
 }
 
-export function Missions() {
-  const t = useT();
-  const { missions, counters, claim } = useStore();
-  const achievements = [
-    { n: t("ach.firstTruck"), ok: counters.trucks >= 1 },
-    { n: t("ach.parcelPro"), ok: counters.delivered >= 50 },
-    { n: t("ach.fleetBoss"), ok: counters.boosts >= 3 },
-    { n: t("ach.palletKing"), ok: counters.pallets >= 10 },
-  ];
-  return (
-    <Section title={t("missions.title")}>
-      <ul className="divide-y divide-rule border-y border-rule">
-        {missions.map((m) => {
-          const cur = Math.min(m.goal, counters[m.metric] - m.base);
-          const done = cur >= m.goal;
-          return (
-            <li key={m.id} className="py-2.5">
-              <div className="flex items-start justify-between gap-3">
-                <span className="text-[13px]">{t(`mission.${m.metric}` as Key, { n: m.goal })}</span>
-                <span className="shrink-0 text-xs text-ink/55">{cur}/{m.goal}</span>
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <div className="flex-1"><Bar value={(cur / m.goal) * 100} /></div>
-                {done ? (
-                  <button onClick={() => claim(m.id)} className="h-6 rounded-ui bg-accent px-2.5 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90">{t("missions.claim")}</button>
-                ) : (
-                  <span className="text-xs text-ink/45">{t("missions.reward", { xp: m.xp, coins: m.coins })}</span>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      <div className="mt-4 text-xs text-ink/55">{t("missions.achievements", { done: achievements.filter((a) => a.ok).length, total: achievements.length })}</div>
-      <ul className="mt-1.5 grid grid-cols-2 gap-y-1 text-xs">
-        {achievements.map((a) => (
-          <li key={a.n} className={`flex items-center gap-1.5 ${a.ok ? "" : "text-ink/40"}`}>
-            {a.ok ? <Check size={12} /> : <Minus size={12} />}{a.n}
-          </li>
-        ))}
-      </ul>
-    </Section>
-  );
-}
-
 export function Fleet() {
   const t = useT();
-  const { fleet, select, selected, boosts, entities } = useStore();
+  const { fleet, select, selected, entities } = useStore();
   return (
     <Section title={t("fleet.title")} aside={t("fleet.hint")}>
       <div className="grid grid-cols-[1fr_72px_44px] px-2 pb-1 text-xs text-ink/45">
@@ -149,7 +103,6 @@ export function Fleet() {
         {entities.map((f) => {
           const st = fleet[f.id];
           if (!st) return null;
-          const boosted = (boosts[f.id] ?? 0) > Date.now();
           return (
             <li key={f.id}>
               <button
@@ -157,9 +110,7 @@ export function Fleet() {
                 className={`grid w-full grid-cols-[1fr_72px_44px] items-center px-2 py-1.5 text-left text-xs transition-colors duration-150 ${selected?.id === f.id ? "bg-ink/10" : "hover:bg-ink/5"}`}
               >
                 <span className="truncate">{f.label}</span>
-                <span className={boosted ? "inline-flex items-center gap-1 text-accent" : st.status === "charging" ? "text-warn" : "text-ink/60"}>
-                  {boosted ? <><Zap size={11} fill="currentColor" />{t("fleet.boost")}</> : st.status === "charging" ? t("fleet.charging") : t("fleet.active")}
-                </span>
+                <span className={st.status === "charging" ? "text-warn" : "text-ink/60"}>{st.status === "charging" ? t("fleet.charging") : t("fleet.active")}</span>
                 <span className={`text-right ${st.battery < 25 ? "text-warn" : "text-ink/60"}`}>{Math.round(st.battery)}%</span>
               </button>
             </li>
@@ -170,7 +121,7 @@ export function Fleet() {
   );
 }
 
-const KIND_CLASS = { info: "", success: "", warn: "text-warn", level: "font-semibold" } as const;
+const KIND_CLASS = { info: "", success: "", warn: "text-warn" } as const;
 
 export function Activity() {
   const t = useT();
@@ -216,7 +167,6 @@ export function RightColumn() {
       <AgentPanel />
       <MachinePanel />
       <MaintenanceTable />
-      <Missions />
       <Fleet />
       <Activity />
     </aside>
