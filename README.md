@@ -107,9 +107,34 @@ npx tsc --noEmit
 
 The RLS tests run the real migration in an in-process Postgres and check what each role can read and write across warehouses.
 
+## Validation on real data (CWRU)
+
+The scoring was checked on real bearing recordings from the Case Western Reserve University Bearing Data Center (12 kHz drive-end accelerometer, 0 hp, about 1797 rpm): one normal recording and nine fault recordings (inner race, ball and outer race, each at 0.007", 0.014" and 0.021"). The unchanged production code was used and **nothing was tuned on CWRU**; the scoring constants come from the synthetic windows. The baseline is learned from the first half of the normal recording and the second half is held out.
+
+| Result | Value |
+|---|---|
+| Held-out normal windows scored below 75 (false alarms) | 0 of 10 |
+| Fault recordings with every 1 s window below 75 and below 50 | 9 of 9 (10 windows each) |
+| Median score per fault recording | 8 to 36 (normal: 99) |
+| AUROC, fault vs held-out normal | 1.0 in all nine |
+
+Reproduce it (the data files are not in the repository; download them from the CWRU site into `health-service/data/cwru/`, file numbers are listed in `health-service/validation/cwru.py`):
+
+```bash
+npm run validate:cwru
+```
+
+How to read this honestly:
+
+- **It is an easy test.** Faults at 0 hp against a normal recording at the same load separate cleanly. Detection is driven mostly by energy in the 2-4 kHz band, where the bearing impacts ring; the envelope ratio at the outer-race defect frequency rises strongly only for the outer-race recordings, as expected.
+- **Small sample.** 10 windows per recording. Treat the perfect AUROC as "clearly separable here", not as a field accuracy figure.
+- **Not yet tested:** normal recordings at other loads (a likely source of false alarms), other machines, noisy field conditions.
+- **Detection only.** The score says that something is abnormal; it does not tell inner race, outer race and ball faults apart.
+- **Severity ordering is not expected to hold.** The CWRU fault sizes come from different seeded-fault bearings, not from one bearing wearing down, so a larger fault does not always score lower. Remaining-life estimates are not validated: CWRU has no run-to-failure data (the IMS dataset does).
+
 ## Known limitations
 
-- Telemetry is synthetic; no field validation yet. A public bearing dataset (CWRU or IMS) is the planned next check.
+- The live demo telemetry is synthetic. The scoring has been checked on CWRU recordings (see above) but not on field data; the IMS run-to-failure dataset is the planned check for remaining-life estimates.
 - Manuals are synthetic samples written for this demo.
 - Health snapshots are written only while someone has the app open and visible. A production deployment needs a proper ingest service.
 - Baselines in the health service are held in memory.
