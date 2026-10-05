@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.vercel
+.env*
+!.env.example
+health-service/.venv
+health-service/**/__pycache__
+*.tsbuildinfo

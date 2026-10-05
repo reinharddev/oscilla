@@ -1,0 +1,42 @@
+# Runs the web app and the health service. Supabase stays hosted: put its URL and keys in .env
+# (copy .env.example). The compose file points the web app at the health service by service name.
+#
+#   docker compose up --build            web on :3000, health service on :8100
+#   docker compose --profile mock up     also starts a mock LLM so the Copilot can be tried without a GPU
+services:
+  health:
+    build: ./health-service
+    environment:
+      HEALTH_API_KEY: ${HEALTH_SERVICE_KEY:-}
+    ports: ["8100:8100"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8100/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set it in .env}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?set it in .env}
+    environment:
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
+      HEALTH_SERVICE_URL: http://health:8100
+      HEALTH_SERVICE_KEY: ${HEALTH_SERVICE_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+    depends_on:
+      health: { condition: service_healthy }
+    ports: ["3000:3000"]
+
+  mock-llm:
+    profiles: ["mock"]
+    image: node:24-slim
+    working_dir: /app
+    volumes: ["./scripts/mock-llm.mjs:/app/mock-llm.mjs:ro"]
+    environment: { PORT: "8000" }
+    command: ["node", "mock-llm.mjs"]
+    ports: ["8000:8000"]
