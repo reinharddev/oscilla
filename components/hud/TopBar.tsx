@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Coins, Moon, Pause, Sun } from "lucide-react";
-import { levelFromXp, useStore, xpForLevel } from "@/lib/store";
+import { signOut } from "@/app/login/actions";
+import { levelFromXp, useStore, xpForLevel, type Role } from "@/lib/store";
+
+const ROLE_LABEL: Record<Role, string> = { admin: "Admin", manager: "Manajer", technician: "Teknisi", viewer: "Pemantau" };
 
 function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -17,7 +20,7 @@ function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; c
 }
 
 export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void }) {
-  const { xp, coins, speed, layers, theme, setSpeed, setTheme, toggleLayer } = useStore();
+  const { xp, coins, speed, layers, theme, auth, setSpeed, setTheme, toggleLayer } = useStore();
   const [clock, setClock] = useState("--:--:--");
   useEffect(() => {
     const t = () => setClock(new Date().toLocaleTimeString("id-ID", { hour12: false }));
@@ -77,6 +80,17 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
         >
           {theme === "day" ? <Moon size={14} /> : <Sun size={14} />}
         </button>
+        {auth && (
+          <div className="ml-1 hidden items-center gap-2 border-l border-rule pl-3 md:flex">
+            <div className="text-right leading-tight">
+              <div className="text-xs font-medium">{auth.name}</div>
+              <div className="text-[11px] text-ink/55">{ROLE_LABEL[auth.role]}</div>
+            </div>
+            <form action={signOut}>
+              <button className="h-7 rounded-ui border border-rule px-2.5 text-xs text-ink/70 transition-colors duration-150 hover:bg-ink/5">Keluar</button>
+            </form>
+          </div>
+        )}
       </div>
     </header>
   );

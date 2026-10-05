@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, type HydrateInput } from "@/lib/store";
 import { TopBar } from "./hud/TopBar";
 import { Activity, Fleet, LeftColumn, Missions, OverviewPanels, RightColumn } from "./hud/Panels";
 import { MachinePanel, MaintenanceTable } from "./hud/MachinePanel";
@@ -14,7 +14,7 @@ const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
   loading: () => <div className="absolute inset-0 grid place-items-center text-sm text-ink/50">Loading warehouse…</div>,
 });
 
-export default function Game() {
+export default function Game({ initial }: { initial: HydrateInput }) {
   const [focus, setFocus] = useState(false);
   const [tab, setTab] = useState<"overview" | "machine" | "missions" | "fleet" | null>(null);
 
@@ -25,10 +25,10 @@ export default function Game() {
       if (saved === "night" || saved === "day") useStore.getState().setTheme(saved);
       else if (window.matchMedia("(prefers-color-scheme: dark)").matches) useStore.getState().setTheme("night");
     } catch {}
-    useStore.getState().initMaintenance();
+    useStore.getState().hydrate(initial);
     useStore.getState().log("info", "Sistem online — semua unit siap beroperasi");
     return () => clearInterval(id);
-  }, []);
+  }, [initial]);
 
   return (
     <main className="flex h-dvh w-screen flex-col bg-canvas">

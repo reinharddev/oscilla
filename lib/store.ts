@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { EntityType, FLEET } from "./layout";
 import type { Theme } from "./theme";
+import { createClient } from "./supabase/client";
 import { Health, MACHINES, readings, seedHealth, statusOf, STATUS_LABEL, FAULT_LABEL } from "./health";
 
 export interface Selected { id: string; type: EntityType; label: string }
@@ -8,8 +9,19 @@ export interface LogEvent { id: number; time: string; kind: "info" | "success" |
 export type Metric = "delivered" | "pallets" | "trucks" | "boosts";
 export interface Mission { id: number; title: string; metric: Metric; goal: number; base: number; xp: number; coins: number }
 export interface Order { id: string; customer: string; items: number; status: "Picking" | "Packed" | "Shipped" }
-export interface Schedule { due: number | null; lastDone: number | null; inProgress: boolean }
-export interface JournalEntry { id: number; ts: number; kind: "note" | "alert" | "schedule" | "start" | "done"; text: string }
+export type Role = "admin" | "manager" | "technician" | "viewer";
+export interface AuthInfo { userId: string; email: string; name: string; role: Role; orgName: string; warehouseName: string }
+export interface Schedule { due: number | null; lastDone: number | null; inProgress: boolean; workOrderId?: string }
+export interface JournalEntry { id: string; ts: number; kind: "note" | "alert" | "schedule" | "start" | "done"; text: string; author?: string }
+export interface HydrateInput {
+  auth: AuthInfo;
+  names: Record<string, string>;
+  assets: { id: string; name: string; org_id: string; warehouse_id: string }[];
+  journal: { id: string; asset_id: string; author_id: string; kind: JournalEntry["kind"]; body: string; created_at: string }[];
+  workOrders: { id: string; asset_id: string; status: string; due_at: string | null; completed_at: string | null }[];
+}
+
+export const canWrite = (a: AuthInfo | null) => a?.role === "admin" || a?.role === "manager" || a?.role === "technician";
 export interface FleetState { battery: number; status: "active" | "charging" }
 
 export const levelFromXp = (xp: number) => Math.floor(Math.sqrt(xp / 60)) + 1;
@@ -47,12 +59,15 @@ interface State {
   health: Record<string, Health>;
   schedules: Record<string, Schedule>;
   journal: Record<string, JournalEntry[]>;
+  auth: AuthInfo | null;
+  assetIds: Record<string, string>; // machine id -> database asset id
+  assetMeta: Record<string, { org_id: string; warehouse_id: string }>;
 
-  initMaintenance: () => void;
-  scheduleMaintenance: (id: string, due: number) => void;
-  startMaintenance: (id: string) => void;
-  completeMaintenance: (id: string, note: string) => void;
-  addNote: (id: string, text: string) => void;
+  hydrate: (init: HydrateInput) => void;
+  scheduleMaintenance: (id: string, due: number) => Promise<void>;
+  startMaintenance: (id: string) => Promise<void>;
+  completeMaintenance: (id: string, note: string) => Promise<void>;
+  addNote: (id: string, text: string) => Promise<void>;
 
   setSpeed: (s: number) => void;
   setTheme: (t: Theme) => void;
@@ -74,8 +89,27 @@ const mkMission = (i: number, base: Record<Metric, number>, scale = 1): Mission 
   return { id: missionSeq++, title: p.title.replace("{n}", String(goal)), metric: p.metric, goal, base: base[p.metric], xp: Math.round(p.xp * scale), coins: Math.round(p.coins * scale) };
 };
 
-function persistMaint(get: () => State) {
-  try { localStorage.setItem("wt-maint", JSON.stringify({ schedules: get().schedules, journal: get().journal })); } catch {}
+type Get = () => State;
+type Set = (p: Partial<State> | ((s: State) => Partial<State>)) => void;
+
+const toEntry = (j: HydrateInput["journal"][number], names: Record<string, string>): JournalEntry => ({
+  id: j.id, ts: Date.parse(j.created_at), kind: j.kind, text: j.body, author: names[j.author_id],
+});
+
+/** Insert a journal row (RLS decides whether this user may) and show it locally. */
+async function addEntry(get: Get, set: Set, id: string, kind: JournalEntry["kind"], text: string) {
+  const s = get();
+  const assetId = s.assetIds[id];
+  const meta = assetId ? s.assetMeta[assetId] : undefined;
+  if (!meta) return;
+  const { data, error } = await createClient()
+    .from("journal_entries")
+    .insert({ asset_id: assetId, ...meta, kind, body: text })
+    .select("id, created_at, author_id")
+    .single();
+  if (error) { get().log("warn", `Jurnal gagal disimpan: ${error.message}`); return; }
+  const entry: JournalEntry = { id: data.id, ts: Date.parse(data.created_at), kind, text, author: s.auth?.name };
+  set((st) => ({ journal: { ...st.journal, [id]: [entry, ...(st.journal[id] ?? [])] } }));
 }
 
 const zeroCounters: Record<Metric, number> = { delivered: 0, pallets: 0, trucks: 0, boosts: 0 };
@@ -109,60 +143,105 @@ export const useStore = create<State>((set, get) => ({
   schedules: Object.fromEntries(MACHINES.map((m) => [m.id, { due: null, lastDone: null, inProgress: false }])),
   journal: Object.fromEntries(MACHINES.map((m) => [m.id, []])),
 
-  initMaintenance: () => {
-    try {
-      const raw = localStorage.getItem("wt-maint");
-      if (raw) { const d = JSON.parse(raw); set({ schedules: { ...get().schedules, ...d.schedules }, journal: { ...get().journal, ...d.journal } }); return; }
-    } catch {}
-    const DAY = 86_400_000, now = Date.now();
-    const seed: [string, number, string][] = [
-      ["fk-1", 12, "Servis berkala 250 jam: ganti oli hidrolik, cek rantai mast."],
-      ["fk-2", 41, "Pelumasan roda depan. Teknisi mencatat getaran sedikit tinggi, pantau."],
-      ["fk-3", 20, "Ganti filter hidrolik."],
-      ["agv-1", 9, "Kalibrasi sensor lidar dan roda."],
-      ["agv-2", 33, "Update firmware navigasi v2.4."],
-      ["agv-3", 15, "Ganti sikat roda penggerak."],
-      ["dr-1", 7, "Ganti baling-baling dan kalibrasi gimbal."],
-      ["dr-2", 26, "Tes kapasitas baterai: 91%."],
-    ];
-    const schedules = { ...get().schedules }, journal = { ...get().journal };
-    seed.forEach(([id, ago, text], i) => {
-      schedules[id] = { due: null, lastDone: now - ago * DAY, inProgress: false };
-      journal[id] = [{ id: now + i, ts: now - ago * DAY, kind: "done", text }];
-    });
-    set({ schedules, journal });
-    try { localStorage.setItem("wt-maint", JSON.stringify({ schedules, journal })); } catch {}
+  auth: null,
+  assetIds: {},
+  assetMeta: {},
+
+  hydrate: (init) => {
+    const byName = new Map(init.assets.map((a) => [a.name, a]));
+    const assetIds: Record<string, string> = {};
+    const assetMeta: Record<string, { org_id: string; warehouse_id: string }> = {};
+    const journal: Record<string, JournalEntry[]> = {};
+    const schedules: Record<string, Schedule> = {};
+    for (const m of MACHINES) {
+      journal[m.id] = [];
+      schedules[m.id] = { due: null, lastDone: null, inProgress: false };
+      const a = byName.get(m.label);
+      if (!a) continue;
+      assetIds[m.id] = a.id;
+      assetMeta[a.id] = { org_id: a.org_id, warehouse_id: a.warehouse_id };
+      journal[m.id] = init.journal.filter((j) => j.asset_id === a.id).map((j) => toEntry(j, init.names)).sort((x, y) => y.ts - x.ts);
+      const orders = init.workOrders.filter((w) => w.asset_id === a.id);
+      const open = orders.find((w) => w.status === "in_progress");
+      const planned = orders
+        .filter((w) => w.status === "scheduled" && w.due_at)
+        .sort((x, y) => Date.parse(x.due_at!) - Date.parse(y.due_at!))[0];
+      const done = orders.filter((w) => w.status === "done" && w.completed_at).map((w) => Date.parse(w.completed_at!));
+      schedules[m.id] = {
+        due: planned?.due_at ? Date.parse(planned.due_at) : null,
+        lastDone: done.length ? Math.max(...done) : null,
+        inProgress: Boolean(open),
+        workOrderId: open?.id ?? planned?.id,
+      };
+    }
+    set({ auth: init.auth, assetIds, assetMeta, journal, schedules });
   },
 
-  scheduleMaintenance: (id, due) => {
+  scheduleMaintenance: async (id, due) => {
     const s = get();
-    set({ schedules: { ...s.schedules, [id]: { ...s.schedules[id], due } }, journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "schedule", text: `Maintenance dijadwalkan ${new Date(due).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}` }, ...s.journal[id]] } });
-    persistMaint(get);
+    const assetId = s.assetIds[id];
+    const meta = assetId ? s.assetMeta[assetId] : undefined;
+    if (!meta) return;
+    const { data, error } = await createClient()
+      .from("work_orders")
+      .insert({ asset_id: assetId, ...meta, summary: "Maintenance terjadwal", due_at: new Date(due).toISOString() })
+      .select("id")
+      .single();
+    if (error) { get().log("warn", `Jadwal gagal disimpan: ${error.message}`); return; }
+    set((st) => ({ schedules: { ...st.schedules, [id]: { ...st.schedules[id], due, workOrderId: data.id } } }));
+    await addEntry(get, set, id, "schedule", `Maintenance dijadwalkan ${new Date(due).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}`);
   },
-  startMaintenance: (id) => {
+
+  startMaintenance: async (id) => {
     const s = get();
-    set({ schedules: { ...s.schedules, [id]: { ...s.schedules[id], inProgress: true } }, journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "start", text: "Maintenance dimulai, unit dihentikan dari operasi." }, ...s.journal[id]] } });
+    const assetId = s.assetIds[id];
+    const meta = assetId ? s.assetMeta[assetId] : undefined;
+    if (!meta) return;
+    const sb = createClient();
+    const now = new Date().toISOString();
+    let workOrderId = s.schedules[id].workOrderId;
+    if (workOrderId) {
+      const { error } = await sb.from("work_orders").update({ status: "in_progress", started_at: now }).eq("id", workOrderId);
+      if (error) { get().log("warn", `Gagal memulai: ${error.message}`); return; }
+    } else {
+      const { data, error } = await sb
+        .from("work_orders")
+        .insert({ asset_id: assetId, ...meta, status: "in_progress", started_at: now, summary: "Maintenance dimulai" })
+        .select("id")
+        .single();
+      if (error) { get().log("warn", `Gagal memulai: ${error.message}`); return; }
+      workOrderId = data.id;
+    }
+    set((st) => ({ schedules: { ...st.schedules, [id]: { ...st.schedules[id], inProgress: true, workOrderId } } }));
+    await addEntry(get, set, id, "start", "Maintenance dimulai, unit dihentikan dari operasi.");
     get().log("info", `${MACHINES.find((m) => m.id === id)?.label} masuk maintenance`);
-    persistMaint(get);
   },
-  completeMaintenance: (id, note) => {
+
+  completeMaintenance: async (id, note) => {
     const s = get();
+    const workOrderId = s.schedules[id].workOrderId;
+    const text = note.trim() || "Maintenance selesai.";
+    if (workOrderId) {
+      const { error } = await createClient()
+        .from("work_orders")
+        .update({ status: "done", completed_at: new Date().toISOString(), summary: text.slice(0, 2000) })
+        .eq("id", workOrderId);
+      if (error) { get().log("warn", `Gagal menyelesaikan: ${error.message}`); return; }
+    }
     const h = s.health[id];
     const r = readings(0.02, h.fault);
-    set({
-      schedules: { ...s.schedules, [id]: { due: null, lastDone: Date.now(), inProgress: false } },
-      health: { ...s.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] } } },
-      journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "done", text: note.trim() || "Maintenance selesai." }, ...s.journal[id]] },
-    });
+    set((st) => ({
+      schedules: { ...st.schedules, [id]: { due: null, lastDone: Date.now(), inProgress: false } },
+      health: { ...st.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] } } },
+    }));
+    await addEntry(get, set, id, "done", text);
     get().addXp(35, 15);
     get().log("success", `${MACHINES.find((m) => m.id === id)?.label} selesai maintenance · +35 XP`);
-    persistMaint(get);
   },
-  addNote: (id, text) => {
+
+  addNote: async (id, text) => {
     if (!text.trim()) return;
-    const s = get();
-    set({ journal: { ...s.journal, [id]: [{ id: Date.now(), ts: Date.now(), kind: "note", text: text.trim() }, ...s.journal[id]] } });
-    persistMaint(get);
+    await addEntry(get, set, id, "note", text.trim());
   },
 
   setSpeed: (speed) => set({ speed }),
@@ -254,7 +333,7 @@ export const useStore = create<State>((set, get) => ({
       health[m.id] = nh;
       const after = statusOf(nh);
       if (after !== before && after !== "healthy") {
-        journal[m.id] = [{ id: Date.now() + Math.random(), ts: Date.now(), kind: "alert", text: `Status berubah ke ${STATUS_LABEL[after]}: ${FAULT_LABEL[nh.fault]} terdeteksi.` }, ...journal[m.id]];
+        journal[m.id] = [{ id: `local-${Date.now()}-${m.id}`, ts: Date.now(), kind: "alert", text: `Status berubah ke ${STATUS_LABEL[after]}: ${FAULT_LABEL[nh.fault]} terdeteksi.` }, ...journal[m.id]];
         get().log("warn", `${m.label}: ${STATUS_LABEL[after]} (${FAULT_LABEL[nh.fault]})`);
       }
     }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { analysis, FAULT_LABEL, isMachine, LIMIT, MACHINES, rulDays, scoreOf, STATUS_LABEL, statusOf } from "@/lib/health";
-import { useStore } from "@/lib/store";
+import { canWrite, useStore } from "@/lib/store";
 import { Section } from "./ui";
 
 const fmt = (ts: number) => new Date(ts).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
@@ -40,7 +40,8 @@ function Reading({ label, unit, value, data, limit }: { label: string; unit: str
 const KIND_LABEL = { note: "Catatan", alert: "Peringatan", schedule: "Jadwal", start: "Mulai", done: "Selesai" } as const;
 
 export function MachinePanel() {
-  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote } = useStore();
+  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth } = useStore();
+  const writable = canWrite(auth);
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
   const [work, setWork] = useState("");
@@ -81,7 +82,13 @@ export function MachinePanel() {
       </Section>
 
       <Section title="Maintenance" aside={sch.lastDone ? `Terakhir ${ago(sch.lastDone)}` : "Belum pernah"}>
-        {sch.inProgress ? (
+        {!writable ? (
+          <div className="space-y-1 text-xs">
+            {sch.inProgress && <p className="text-ink/70">Unit sedang dalam maintenance.</p>}
+            {sch.due !== null && <p className="text-ink/70">Terjadwal · {fmt(sch.due)}</p>}
+            <p className="text-ink/50">Peran Pemantau hanya dapat melihat. Mengubah jadwal atau jurnal memerlukan peran Teknisi atau lebih tinggi.</p>
+          </div>
+        ) : sch.inProgress ? (
           <div className="space-y-2">
             <p className="text-xs text-ink/70">Unit sedang dihentikan untuk maintenance. Tulis pekerjaan yang dilakukan lalu tandai selesai.</p>
             <textarea value={work} onChange={(e) => setWork(e.target.value)} rows={3} placeholder="Pekerjaan yang dilakukan, suku cadang, temuan…" className="w-full rounded-ui border border-rule bg-surface p-2 text-xs outline-none focus:border-accent" />
@@ -109,15 +116,15 @@ export function MachinePanel() {
       </Section>
 
       <Section title="Jurnal mesin" aside={`${log.length} entri`}>
-        <div className="flex gap-2">
+        {writable && <div className="flex gap-2">
           <input value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { addNote(id, note); setNote(""); } }} placeholder="Tambah catatan…" className="h-8 min-w-0 flex-1 rounded-ui border border-rule bg-surface px-2 text-xs outline-none focus:border-accent" />
           <button disabled={!note.trim()} onClick={() => { addNote(id, note); setNote(""); }} className="h-8 rounded-ui border border-rule px-3 text-xs transition-colors duration-150 hover:bg-ink/5 disabled:opacity-40">Simpan</button>
-        </div>
+        </div>}
         <ul className="scroll-thin mt-3 max-h-64 divide-y divide-rule overflow-y-auto border-y border-rule">
           {log.length === 0 && <li className="py-2 text-xs text-ink/45">Belum ada catatan.</li>}
           {log.map((e) => (
             <li key={e.id} className="py-2">
-              <div className="flex justify-between text-xs text-ink/55"><span className={e.kind === "alert" ? "text-warn" : ""}>{KIND_LABEL[e.kind]}</span><span>{fmt(e.ts)}</span></div>
+              <div className="flex justify-between text-xs text-ink/55"><span className={e.kind === "alert" ? "text-warn" : ""}>{KIND_LABEL[e.kind]}{e.author ? ` · ${e.author}` : ""}</span><span>{fmt(e.ts)}</span></div>
               <div className="mt-0.5 text-[13px] leading-snug">{e.text}</div>
             </li>
           ))}
