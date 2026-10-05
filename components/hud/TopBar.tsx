@@ -33,7 +33,7 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 whitespace-nowrap px-3 md:gap-6 border-b border-rule bg-surface">
       <div className="flex min-w-0 items-baseline gap-3">
-        <span className="truncate text-sm font-semibold">Warehouse<span className="hidden sm:inline"> Dashboard</span></span>
+        <span className="truncate text-sm font-semibold">Oscilla</span>
         <span className="hidden text-xs text-ink/55 sm:inline">JKT-01 · {clock}</span>
       </div>
 

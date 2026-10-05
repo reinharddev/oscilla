@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Warehouse Dashboard",
+  title: "Oscilla",
   description: "Gamified isometric warehouse dashboard built with Next.js, React Three Fiber and Tailwind CSS.",
 };
 
