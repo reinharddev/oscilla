@@ -1,0 +1,54 @@
+import { NextResponse } from "next/server";
+import manuals from "@/knowledge/manuals.json";
+import { runAgent, type ChatTurn } from "@/lib/agent";
+import { supabaseBackend } from "@/lib/agent/backend-supabase";
+import type { ManualChunk } from "@/lib/copilot/types";
+import { createClient } from "@/lib/supabase/server";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Per-instance limiter so one user cannot run up the model bill.
+const hits = new Map<string, number[]>();
+function limited(userId: string): boolean {
+  const now = Date.now();
+  const recent = (hits.get(userId) ?? []).filter((t) => now - t < 60_000);
+  recent.push(now);
+  hits.set(userId, recent);
+  return recent.length > 12;
+}
+
+function llmConfig() {
+  const baseUrl = process.env.LLM_BASE_URL;
+  if (!baseUrl) return null;
+  return { baseUrl, apiKey: process.env.LLM_API_KEY, model: process.env.LLM_MODEL ?? "default", timeoutMs: 30_000 };
+}
+
+/**
+ * Question-and-answer agent with tools.
+ * Every tool runs with the caller's own permissions (row-level security) and the agent can only
+ * propose changes; the browser asks the user to confirm before anything is written.
+ */
+export async function POST(request: Request) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (limited(user.id)) return NextResponse.json({ error: "too many requests" }, { status: 429 });
+
+  let body: { question?: unknown; history?: unknown; selectedAssetId?: unknown };
+  try { body = await request.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
+  const question = typeof body.question === "string" ? body.question.trim() : "";
+  if (question.length < 2 || question.length > 500) return NextResponse.json({ error: "question must be 2-500 characters" }, { status: 400 });
+
+  const history: ChatTurn[] = Array.isArray(body.history)
+    ? body.history.slice(-6).flatMap((h: unknown) => {
+        const t = h as Partial<ChatTurn>;
+        return (t.role === "user" || t.role === "assistant") && typeof t.content === "string" ? [{ role: t.role, content: t.content.slice(0, 1500) }] : [];
+      })
+    : [];
+  const selected = typeof body.selectedAssetId === "string" && UUID.test(body.selectedAssetId) ? body.selectedAssetId : null;
+
+  const llm = llmConfig();
+  const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm);
+  const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected });
+  return NextResponse.json({ ...result, llmConfigured: Boolean(llm) });
+}

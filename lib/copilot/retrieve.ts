@@ -16,8 +16,8 @@ export function tokenize(text: string): string[] {
 }
 
 /** BM25 over manual chunks, limited to chunks that apply to the machine type. */
-export function searchManuals(chunks: ManualChunk[], query: string, type: string, limit = 3): { chunk: ManualChunk; score: number }[] {
-  const pool = chunks.filter((c) => c.appliesTo.includes(type));
+export function searchManuals(chunks: ManualChunk[], query: string, type: string | null, limit = 3): { chunk: ManualChunk; score: number }[] {
+  const pool = type === null ? chunks : chunks.filter((c) => c.appliesTo.includes(type));
   if (pool.length === 0) return [];
   const docs = pool.map((c) => tokenize(`${c.section} ${c.section} ${c.text}`));
   const avg = docs.reduce((a, d) => a + d.length, 0) / docs.length;

@@ -10,7 +10,8 @@ createServer(async (req, res) => {
   if (req.method !== "POST" || !req.url?.endsWith("/chat/completions")) { res.writeHead(404).end(); return; }
   let body = "";
   for await (const c of req) body += c;
-  const { messages, model } = JSON.parse(body);
+  const { messages, model, tools } = JSON.parse(body);
+  if (tools) return agentReply(res, messages, model);
   const user = messages.find((m) => m.role === "user").content;
   const facts = JSON.parse(user.slice(user.indexOf("{"), user.indexOf("\n\nSOURCES:")));
   const h = facts.health;
@@ -36,3 +37,34 @@ createServer(async (req, res) => {
   res.writeHead(200, { "content-type": "application/json" });
   res.end(JSON.stringify({ model: model ?? "mock", usage: { prompt_tokens: Math.round(user.length / 4), completion_tokens: 140 }, choices: [{ message: { role: "assistant", content: JSON.stringify(answer) } }] }));
 }).listen(port, () => console.log(`mock LLM (${mode}) on :${port}`));
+
+/** Agent mode: a tiny rule-based "model" that calls tools, then restates the tool results. */
+function agentReply(res, messages, model) {
+  const send = (message) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ model: model ?? "mock", usage: { prompt_tokens: 600, completion_tokens: 60 }, choices: [{ message }] }));
+  };
+  const lastTool = [...messages].reverse().find((m) => m.role === "tool");
+  const question = [...messages].reverse().find((m) => m.role === "user").content.toLowerCase();
+  const call = (name, args) => send({ role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name, arguments: JSON.stringify(args) } }] });
+
+  if (!lastTool) {
+    const code = /\b(fk-?\d+|[a-z]{1,3}\d)\b/.exec(question)?.[0];
+    if (/jadwalkan|buat/.test(question) && code) return call("propose_work_order", { asset: code, summary: "Inspeksi mesin sesuai permintaan pengguna.", due_in_days: 1 });
+    if (code) return call("get_asset_health", { asset: code });
+    if (/kritis/.test(question)) return call("list_assets", { status: "critical" });
+    return call("list_assets", { status: "problem" });
+  }
+
+  const data = JSON.parse(lastTool.content);
+  const tail = mode === "liar" ? " Mesin ini akan gagal dalam 9 hari." : "";
+  if (data.error === "forbidden") return send({ role: "assistant", content: `Maaf, ${data.message}` });
+  if (data.error) return send({ role: "assistant", content: "Mesin itu tidak ditemukan atau kamu tidak punya akses." });
+  if (data.machines) {
+    const list = data.machines.map((m) => `${m.name} (skor ${m.score}, ${m.status})`).join("; ");
+    return send({ role: "assistant", content: data.machines.length ? `Ada ${data.count} mesin: ${list}.${tail}` : "Tidak ada mesin yang cocok." });
+  }
+  if (data.proposed) return send({ role: "assistant", content: `Saya menyiapkan usulan work order untuk ${data.asset}. Ini baru usulan; konfirmasi dulu supaya dibuat.${tail}` });
+  if (data.brief) return send({ role: "assistant", content: `${data.brief.name} berskor ${data.brief.score} (${data.brief.status}).${tail}` });
+  return send({ role: "assistant", content: "Selesai." + tail });
+}

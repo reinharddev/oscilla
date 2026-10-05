@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useStore, type HydrateInput } from "@/lib/store";
 import { TopBar } from "./hud/TopBar";
 import { Activity, Fleet, LeftColumn, Missions, OverviewPanels, RightColumn } from "./hud/Panels";
+import { AgentPanel } from "./hud/AgentPanel";
 import { MachinePanel, MaintenanceTable } from "./hud/MachinePanel";
 import { SelectedPanel } from "./hud/SelectedPanel";
 import { LevelToast } from "./hud/LevelToast";
@@ -17,7 +18,7 @@ const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
 export default function Game({ initial }: { initial: HydrateInput }) {
   const [focus, setFocus] = useState(false);
   const ready = useStore((s) => s.layout !== null && s.auth?.warehouseId === initial.auth.warehouseId);
-  const [tab, setTab] = useState<"overview" | "machine" | "missions" | "fleet" | null>(null);
+  const [tab, setTab] = useState<"overview" | "machine" | "agent" | "missions" | "fleet" | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => useStore.getState().tick(), 1000);
@@ -76,6 +77,7 @@ export default function Game({ initial }: { initial: HydrateInput }) {
             <div className="scroll-thin absolute inset-x-0 bottom-0 top-[38%] overflow-y-auto border-t border-rule bg-surface lg:hidden">
               {tab === "overview" && <OverviewPanels />}
               {tab === "machine" && <><MachinePanel /><MaintenanceTable /></>}
+              {tab === "agent" && <AgentPanel />}
               {tab === "missions" && <Missions />}
               {tab === "fleet" && <><Fleet /><Activity /></>}
             </div>
@@ -83,8 +85,8 @@ export default function Game({ initial }: { initial: HydrateInput }) {
         </div>
         {!focus && <RightColumn />}
       </div>
-      <nav aria-label="Panel" className="grid h-12 shrink-0 grid-cols-5 border-t border-rule bg-surface text-xs lg:hidden">
-        {([["overview", "Operasi"], ["machine", "Mesin"], ["missions", "Misi"], ["fleet", "Armada"]] as const).map(([k, label]) => (
+      <nav aria-label="Panel" className="grid h-12 shrink-0 grid-cols-6 border-t border-rule bg-surface text-xs lg:hidden">
+        {([["overview", "Operasi"], ["machine", "Mesin"], ["agent", "Tanya"], ["missions", "Misi"], ["fleet", "Armada"]] as const).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab((t) => (t === k ? null : k))}

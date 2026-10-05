@@ -2,6 +2,7 @@
 
 import { Check, Minus, Zap } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { AgentPanel } from "./AgentPanel";
 import { MachinePanel, MaintenanceTable } from "./MachinePanel";
 import { Bar, Section } from "./ui";
 
@@ -202,6 +203,7 @@ export function LeftColumn() {
 export function RightColumn() {
   return (
     <aside className="scroll-thin hidden w-[300px] shrink-0 overflow-y-auto border-l border-rule bg-surface lg:block">
+      <AgentPanel />
       <MachinePanel />
       <MaintenanceTable />
       <Missions />
