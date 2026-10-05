@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:db": "node --test supabase/tests/rls.test.mjs",
+    "test:health": "cd health-service && .venv/bin/python -m pytest -q"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",
@@ -18,6 +20,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
