@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "@/lib/i18n/use-t";
 import { levelFromXp, useStore } from "@/lib/store";
 
 export function LevelToast() {
+  const t = useT();
   const levelUp = useStore((s) => s.levelUp);
   const xp = useStore((s) => s.xp);
   const [show, setShow] = useState(false);
@@ -16,7 +18,7 @@ export function LevelToast() {
   if (!show) return null;
   return (
     <div role="status" className="pointer-events-none fixed left-1/2 top-16 z-20 -translate-x-1/2 rounded-ui border border-rule bg-surface px-4 py-2.5 text-sm">
-      <span className="font-semibold">Level {levelFromXp(xp)}</span> <span className="text-ink/60">tercapai</span>
+      <span className="font-semibold">{t("toast.level", { n: levelFromXp(xp) })}</span> <span className="text-ink/60">{t("toast.reached")}</span>
     </div>
   );
 }

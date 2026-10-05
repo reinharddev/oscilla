@@ -16,8 +16,11 @@ export interface Source {
   id: string;
   kind: "manual" | "journal";
   title: string;
-  /** Short locator, e.g. "hal. 41 · Front wheel and wheel bearing inspection". */
+  /** Short locator, e.g. "p. 41 · Front wheel and wheel bearing inspection". */
   detail: string;
+  /** For manual passages: the section title and the page label ("p. 41"), kept separately. */
+  section?: string;
+  pageLabel?: string;
   text: string;
   /** True for the demonstration manuals, which are synthetic and not manufacturer documents. */
   sample?: boolean;

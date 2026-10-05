@@ -1,4 +1,5 @@
 import type { CopilotResult } from "../copilot/types";
+import type { Lang } from "../i18n";
 
 export type Status = "healthy" | "attention" | "critical";
 
@@ -58,5 +59,5 @@ export interface AgentResult {
   latencyMs: number;
 }
 
-export interface ToolContext { selectedAssetId?: string | null; now: () => number }
+export interface ToolContext { selectedAssetId?: string | null; now: () => number; lang: Lang }
 export interface ChatTurn { role: "user" | "assistant"; content: string }

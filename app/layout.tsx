@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getLang } from "@/lib/i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,9 +7,10 @@ export const metadata: Metadata = {
   description: "Gamified isometric warehouse dashboard built with Next.js, React Three Fiber and Tailwind CSS.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const lang = await getLang();
   return (
-    <html lang="id" data-theme="day" suppressHydrationWarning>
+    <html lang={lang} data-theme="day" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

@@ -1,4 +1,5 @@
 import type { EntityType } from "./layout";
+import type { Key, T } from "./i18n";
 
 export type FaultKind = "bearing" | "overheat" | "battery";
 export type HealthStatus = "healthy" | "attention" | "critical";
@@ -7,18 +8,13 @@ export interface Evidence { feature: string; label: string; value: number; basel
 /** Result of the health service for one window of vibration data. */
 export interface ServiceAnalysis { score: number; status: HealthStatus; evidence: Evidence[]; modelVersion: string; source: string; at: number }
 
-const FEATURE_ID: Record<string, string> = {
-  rms: "Tingkat getaran keseluruhan (RMS)",
-  peak: "Amplitudo puncak",
-  crest_factor: "Crest factor (puncak vs RMS)",
-  kurtosis: "Kurtosis (lonjakan tajam)",
-  skewness: "Skewness",
-  bpfo_envelope_ratio: "Energi di frekuensi cacat bearing",
-};
-/** Indonesian label for a feature name coming from the health service. */
-export function featureLabel(e: Evidence): string {
+/** Label for a feature name coming from the health service, in the language of `t`. */
+export function featureLabel(e: Evidence, t: T): string {
   const band = /^band_(\d+)_(\d+)_db$/.exec(e.feature);
-  return FEATURE_ID[e.feature] ?? (band ? `Energi ${band[1]}–${band[2]} Hz` : e.label);
+  if (band) return t("feature.band", { lo: band[1], hi: band[2] });
+  const key = `feature.${e.feature}` as Key;
+  const text = t(key);
+  return text === key ? e.label : text;
 }
 
 export interface Health {
@@ -36,15 +32,8 @@ export interface Machine { id: string; label: string; type: EntityType; serial: 
 export const BASE = { vib: 2, temp: 52, cur: 8 };
 export const LIMIT = { vib: 4.5, temp: 75, cur: 10.5 };
 
-export const FAULT_LABEL: Record<FaultKind, string> = {
-  bearing: "Keausan bearing",
-  overheat: "Motor overheat",
-  battery: "Degradasi baterai",
-};
-
-export const STATUS_LABEL: Record<HealthStatus | "maintenance", string> = {
-  healthy: "Sehat", attention: "Perlu perhatian", critical: "Kritis", maintenance: "Sedang maintenance",
-};
+export const faultKey = (f: FaultKind): Key => `fault.${f}` as Key;
+export const statusKey = (s: HealthStatus | "maintenance"): Key => `status.${s}` as Key;
 
 export const scoreOf = (h: Health) => h.analysis ? Math.round(h.analysis.score) : Math.max(0, Math.min(100, Math.round(100 - h.wear * 95)));
 export const statusOf = (h: Health): HealthStatus => { const s = scoreOf(h); return s >= 75 ? "healthy" : s >= 50 ? "attention" : "critical"; };
@@ -76,20 +65,18 @@ export function seedHealth(machines: Machine[], demoWear: Record<string, number>
   return out;
 }
 
-export function analysis(h: Health): string {
+export function analysis(h: Health, t: T): string {
   const st = statusOf(h);
-  if (st === "healthy") return "Semua parameter dalam batas normal. Tidak ada tindakan yang diperlukan.";
+  if (st === "healthy") return t("analysis.healthy");
   const d = rulDays(h);
   if (h.analysis?.evidence.length) {
     const top = h.analysis.evidence[0];
     const num = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2));
     const bearing = h.analysis.evidence.some((e) => e.feature === "bpfo_envelope_ratio");
-    const rec = bearing
-      ? `Polanya khas keausan bearing. Rekomendasi: inspeksi dan ganti bearing dalam ${d} hari.`
-      : `Rekomendasi: inspeksi unit dalam ${d} hari.`;
-    return `Skor ${scoreOf(h)}. Penyimpangan terbesar: ${featureLabel(top).toLowerCase()} ${num(top.value)} (normal ${num(top.baseline)}). ${rec}`;
+    const rec = bearing ? t("analysis.recBearing", { d }) : t("analysis.recGeneric", { d });
+    return t("analysis.evidence", { score: scoreOf(h), label: featureLabel(top, t).toLowerCase(), value: num(top.value), baseline: num(top.baseline), rec });
   }
-  if (h.fault === "bearing") return `Getaran ${Math.round((h.vib / BASE.vib - 1) * 100)}% di atas baseline dan terus naik. Pola konsisten dengan keausan bearing. Rekomendasi: inspeksi dan ganti bearing dalam ${d} hari.`;
-  if (h.fault === "overheat") return `Suhu motor ${h.temp.toFixed(0)}°C, ${Math.round(h.temp - BASE.temp)}°C di atas normal. Kemungkinan kipas pendingin atau belitan motor bermasalah. Rekomendasi: periksa pendinginan dalam ${d} hari.`;
-  return `Arus beban naik ${Math.round((h.cur / BASE.cur - 1) * 100)}% dan kapasitas baterai menurun. Rekomendasi: uji kapasitas dan jadwalkan penggantian sel dalam ${d} hari.`;
+  if (h.fault === "bearing") return t("analysis.bearing", { pct: Math.round((h.vib / BASE.vib - 1) * 100), d });
+  if (h.fault === "overheat") return t("analysis.overheat", { t: h.temp.toFixed(0), over: Math.round(h.temp - BASE.temp), d });
+  return t("analysis.battery", { pct: Math.round((h.cur / BASE.cur - 1) * 100), d });
 }

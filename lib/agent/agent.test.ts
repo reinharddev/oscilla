@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { runAgent } from "./index";
-import { SYSTEM_PROMPT } from "./loop";
+import { SYSTEM_PROMPT, systemPrompt } from "./loop";
 import { findAsset, parseDueDays, toks } from "./rules";
 import { executeTool, toolSpecs, TOOLS } from "./tools";
 import type { AssetBrief, Backend, JournalRow, Resolved } from "./types";
@@ -68,6 +68,7 @@ function scripted(replies: object[]) {
 const call = (id: string, name: string, args: object | string) => ({ id, type: "function", function: { name, arguments: typeof args === "string" ? args : JSON.stringify(args) } });
 const llm = { baseUrl: "http://llm.test/v1", model: "scripted" };
 const now = () => Date.parse("2026-10-06T10:00:00Z");
+const ctxId = { now, lang: "id" as const };
 
 describe("naming", () => {
   it.each(["FK-02", "fk 02", "FK02", "fk2", "forklift fk-02"])("recognises %s as Forklift FK-02", (q) => {
@@ -95,35 +96,35 @@ describe("tools", () => {
   });
   it("rejects unknown tools and bad arguments without throwing", async () => {
     const { backend } = fake("technician");
-    expect((await executeTool(backend, "drop_tables", {}, { now })).ok).toBe(false);
-    const bad = await executeTool(backend, "list_assets", { status: "exploding" }, { now });
+    expect((await executeTool(backend, "drop_tables", {}, ctxId)).ok).toBe(false);
+    const bad = await executeTool(backend, "list_assets", { status: "exploding" }, ctxId);
     expect(bad.ok).toBe(false);
     expect(bad.summary).toBe("argumen tidak valid");
   });
   it("a proposal is never a write: it only returns something to confirm", async () => {
     const { backend } = fake("technician");
-    const r = await executeTool(backend, "propose_work_order", { asset: "FK-02", summary: "Inspeksi bearing", due_in_days: 2 }, { now });
+    const r = await executeTool(backend, "propose_work_order", { asset: "FK-02", summary: "Inspeksi bearing", due_in_days: 2 }, ctxId);
     expect(r.ok).toBe(true);
     expect((r.data as any).requiresUserConfirmation).toBe(true);
     expect(r.proposal?.dueAt).toBe("2026-10-08T10:00:00.000Z");
   });
   it("a viewer cannot even get a proposal", async () => {
     const { backend } = fake("viewer");
-    const r = await executeTool(backend, "propose_work_order", { asset: "FK-02", summary: "Inspeksi bearing" }, { now });
+    const r = await executeTool(backend, "propose_work_order", { asset: "FK-02", summary: "Inspeksi bearing" }, ctxId);
     expect(r.ok).toBe(false);
     expect(r.proposal).toBeUndefined();
     expect((r.data as any).error).toBe("forbidden");
   });
   it("'selected' resolves to the open machine", async () => {
     const { backend } = fake("technician");
-    const r = await executeTool(backend, "get_asset_health", { asset: "selected" }, { now, selectedAssetId: "a2" });
+    const r = await executeTool(backend, "get_asset_health", { asset: "selected" }, { now, lang: "id", selectedAssetId: "a2" });
     expect(r.summary).toContain("FK-02");
   });
 });
 
 describe("rules mode (no LLM)", () => {
   const ask = (q: string, role: "technician" | "viewer" = "technician", selected?: string) =>
-    runAgent({ question: q, backend: fake(role).backend, llm: null, selectedAssetId: selected, now });
+    runAgent({ question: q, backend: fake(role).backend, llm: null, selectedAssetId: selected, now, lang: "id" });
 
   it("lists critical machines", async () => {
     const r = await ask("mesin mana yang kritis?");
@@ -183,7 +184,7 @@ describe("LLM tool-calling loop", () => {
       { content: null, tool_calls: [call("c1", "list_assets", { status: "critical" })] },
       { content: "Satu mesin kritis: Forklift FK-02 dengan skor 34." },
     ]);
-    const r = await runAgent({ question: "mesin mana yang kritis?", backend: fake("technician").backend, llm, fetchImpl: impl, now });
+    const r = await runAgent({ question: "mesin mana yang kritis?", backend: fake("technician").backend, llm, fetchImpl: impl, now, lang: "id" });
     expect(r.mode).toBe("llm");
     expect(r.answer).toContain("FK-02");
     expect(r.steps).toHaveLength(1);
@@ -199,7 +200,7 @@ describe("LLM tool-calling loop", () => {
       { content: null, tool_calls: [call("c1", "list_assets", { status: "critical" })] },
       { content: "FK-02 kritis dan akan gagal dalam 3 hari dengan skor 12." },
     ]);
-    const r = await runAgent({ question: "mesin mana yang kritis?", backend: fake("technician").backend, llm, fetchImpl: impl, now });
+    const r = await runAgent({ question: "mesin mana yang kritis?", backend: fake("technician").backend, llm, fetchImpl: impl, now, lang: "id" });
     expect(r.answerRejected).toBe(true);
     expect(r.rejectedAnswer).toContain("3 hari");
     expect(r.answer).toContain("skor 34");
@@ -213,7 +214,7 @@ describe("LLM tool-calling loop", () => {
       { content: null, tool_calls: [call("c2", "get_asset_health", { asset: "FK-02" })] },
       { content: "FK-02 berskor 34." },
     ]);
-    const r = await runAgent({ question: "kondisi FK-02?", backend: fake("technician").backend, llm, fetchImpl: impl, now });
+    const r = await runAgent({ question: "kondisi FK-02?", backend: fake("technician").backend, llm, fetchImpl: impl, now, lang: "id" });
     expect(r.steps.map((s) => s.ok)).toEqual([false, true]);
     expect(r.answer).toContain("34");
   });
@@ -221,14 +222,14 @@ describe("LLM tool-calling loop", () => {
   it("stops after a bounded number of rounds", async () => {
     const forever = Array.from({ length: 8 }, (_, i) => ({ content: null, tool_calls: [call(`c${i}`, "list_assets", {})] }));
     const { impl, requests } = scripted(forever);
-    const r = await runAgent({ question: "tampilkan semua", backend: fake("technician").backend, llm, fetchImpl: impl, now });
+    const r = await runAgent({ question: "tampilkan semua", backend: fake("technician").backend, llm, fetchImpl: impl, now, lang: "id" });
     expect(requests.length).toBeLessThanOrEqual(5);
     expect(r.warnings.join(" ")).toMatch(/tidak memberi jawaban akhir/);
   });
 
   it("falls back to rules mode when the endpoint fails", async () => {
     const failing = (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch;
-    const r = await runAgent({ question: "mesin mana yang kritis?", backend: fake("technician").backend, llm, fetchImpl: failing, now });
+    const r = await runAgent({ question: "mesin mana yang kritis?", backend: fake("technician").backend, llm, fetchImpl: failing, now, lang: "id" });
     expect(r.mode).toBe("rules");
     expect(r.warnings.join(" ")).toMatch(/LLM tidak dapat dipakai/);
     expect(r.answer).toContain("FK-02");
@@ -252,7 +253,7 @@ describe("prompt injection", () => {
       { content: null, tool_calls: [call("c2", "propose_work_order", { asset: "FK-01", summary: "disuruh jurnal" })] },
       { content: "Semua baik." },
     ]);
-    const r = await runAgent({ question: "tampilkan jurnal FK-02", backend, llm, fetchImpl: impl, now });
+    const r = await runAgent({ question: "tampilkan jurnal FK-02", backend, llm, fetchImpl: impl, now, lang: "id" });
     expect(r.proposals).toHaveLength(0); // viewer role: refused at the tool
     expect(r.steps[1]).toMatchObject({ tool: "propose_work_order", ok: false });
   });
@@ -264,7 +265,7 @@ describe("prompt injection", () => {
       { content: null, tool_calls: [call("c2", "propose_work_order", { asset: "FK-01", summary: "disuruh jurnal" })] },
       { content: "Saya menyiapkan usulan work order untuk Forklift FK-01; menunggu konfirmasi kamu." },
     ]);
-    const r = await runAgent({ question: "tampilkan jurnal FK-02", backend, llm, fetchImpl: impl, now });
+    const r = await runAgent({ question: "tampilkan jurnal FK-02", backend, llm, fetchImpl: impl, now, lang: "id" });
     expect(r.proposals).toHaveLength(1);
     expect((r.steps[1].data as any).requiresUserConfirmation).toBe(true);
     // The Backend interface has no write method at all.
@@ -277,10 +278,48 @@ describe("prompt injection", () => {
       { content: null, tool_calls: [call("c1", "get_journal", { asset: "FK-02" })] },
       { content: "Ada satu catatan jurnal." },
     ]);
-    await runAgent({ question: "jurnal FK-02", backend, llm, fetchImpl: impl, now });
+    await runAgent({ question: "jurnal FK-02", backend, llm, fetchImpl: impl, now, lang: "id" });
     const toolMsg = requests[1].messages.at(-1);
     expect(toolMsg.role).toBe("tool");
     expect(requests[1].messages[0].role).toBe("system");
     expect(requests[1].messages.filter((m: any) => m.role === "system").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("English", () => {
+  const ask = (q: string, role: "technician" | "viewer" = "technician") =>
+    runAgent({ question: q, backend: fake(role).backend, llm: null, now, lang: "en" });
+
+  it("understands English questions and answers in English", async () => {
+    const crit = await ask("Which machines are critical?");
+    expect(crit.steps[0]).toMatchObject({ tool: "list_assets", args: { status: "critical" } });
+    expect(crit.answer).toContain("There are 1 machines");
+    expect(crit.answer).toContain("critical");
+
+    const why = await ask("Why did FK-02's score drop?");
+    expect(why.steps.map((s) => s.tool)).toEqual(["get_asset_health", "diagnose_asset"]);
+
+    const last = await ask("When was FK-02 last serviced?");
+    expect(last.answer).toContain("last service 41 days ago");
+  });
+
+  it("proposes in English and refuses a viewer in English", async () => {
+    const p = await ask("Schedule service for FK-02 tomorrow");
+    expect(p.proposals[0]).toMatchObject({ assetId: "a2", dueAt: "2026-10-07T10:00:00.000Z" });
+    expect(p.answer).toMatch(/Nothing has been created yet/);
+    const v = await ask("Schedule service for FK-02 tomorrow", "viewer");
+    expect(v.proposals).toHaveLength(0);
+    expect(v.answer).toMatch(/may not create work orders/);
+  });
+
+  it("does not mistake English phrases for a machine code", async () => {
+    expect((await ask("which machines are critical in 14 days?")).steps[0].tool).toBe("list_assets");
+    expect((await ask("show me everything within 30 days")).answer).not.toMatch(/wasn't found/);
+    expect((await ask("why is XY-99 failing?")).answer).toMatch(/wasn't found, or you don't have access/);
+  });
+
+  it("asks the model to answer in the user's language", () => {
+    expect(systemPrompt("en")).toContain("Answer in English");
+    expect(systemPrompt("id")).toContain("Answer in Indonesian");
   });
 });

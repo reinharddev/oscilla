@@ -25,9 +25,9 @@ const SBY = "b0000000-0000-4000-8000-000000000002";
 const USERS = [
   { email: "admin@oscilla.example", name: "Dina Admin", role: "admin", warehouse: null },
   { email: "manager@oscilla.example", name: "Made Manager", role: "manager", warehouse: JKT },
-  { email: "technician@oscilla.example", name: "Budi Teknisi", role: "technician", warehouse: JKT },
+  { email: "technician@oscilla.example", name: "Budi Technician", role: "technician", warehouse: JKT },
   { email: "viewer@oscilla.example", name: "Vina Viewer", role: "viewer", warehouse: JKT },
-  { email: "technician.sby@oscilla.example", name: "Sari Teknisi (Surabaya)", role: "technician", warehouse: SBY },
+  { email: "technician.sby@oscilla.example", name: "Sari Technician (Surabaya)", role: "technician", warehouse: SBY },
 ];
 
 const ids = {};
@@ -77,23 +77,29 @@ async function seedHistory(warehouseId, authorEmail, history) {
   console.log(`ok  seeded ${history.length} service history entries`);
 }
 
+if (process.argv.includes("--reset-history")) {
+  await admin.from("journal_entries").delete().eq("org_id", ORG);
+  await admin.from("work_orders").delete().eq("org_id", ORG);
+  console.log("ok  cleared journal entries and work orders of the demo organization");
+}
+
 await seedHistory(JKT, "technician@oscilla.example", [
-  ["Forklift FK-01", 12, "Servis berkala 250 jam: ganti oli hidrolik, cek rantai mast."],
-  ["Forklift FK-02", 41, "Pelumasan roda depan. Teknisi mencatat getaran sedikit tinggi, pantau."],
-  ["Forklift FK-03", 20, "Ganti filter hidrolik."],
-  ["AGV Robot R1", 9, "Kalibrasi sensor lidar dan roda."],
-  ["AGV Robot R2", 33, "Update firmware navigasi v2.4."],
-  ["AGV Robot R3", 15, "Ganti sikat roda penggerak."],
-  ["Scan Drone D1", 7, "Ganti baling-baling dan kalibrasi gimbal."],
-  ["Scan Drone D2", 26, "Tes kapasitas baterai: 91%."],
+  ["Forklift FK-01", 12, "250-hour service: replaced hydraulic oil, checked the mast chain."],
+  ["Forklift FK-02", 41, "Lubricated the front wheel. Technician noted slightly high vibration, keep monitoring."],
+  ["Forklift FK-03", 20, "Replaced the hydraulic filter."],
+  ["AGV Robot R1", 9, "Calibrated the lidar sensor and wheels."],
+  ["AGV Robot R2", 33, "Updated navigation firmware to v2.4."],
+  ["AGV Robot R3", 15, "Replaced the drive wheel brush."],
+  ["Scan Drone D1", 7, "Replaced the propellers and calibrated the gimbal."],
+  ["Scan Drone D2", 26, "Battery capacity test: 91%."],
 ]);
 await seedHistory(SBY, "technician.sby@oscilla.example", [
-  ["AGV S1", 10, "Kalibrasi sensor tabrakan dan ganti roda belakang."],
-  ["AGV S2", 38, "Ganti motor penggerak kiri. Getaran masih sedikit tinggi, pantau."],
-  ["AGV S3", 18, "Update firmware navigasi dan uji jalur."],
-  ["AGV S4", 22, "Servis berkala: pelumasan dan pengencangan baut."],
-  ["Forklift S-FK1", 14, "Servis berkala 250 jam dan ganti filter udara."],
-  ["Scan Drone S-D1", 9, "Tes baterai dan kalibrasi kamera."],
-  ["Sorter Belt 1", 30, "Ganti bearing roller ke-12 dan setel ketegangan belt."],
-  ["Sorter Belt 2", 17, "Pelumasan rantai penggerak dan cek sabuk."],
+  ["AGV S1", 10, "Calibrated the collision sensor and replaced the rear wheel."],
+  ["AGV S2", 38, "Replaced the left drive motor. Vibration still slightly high, keep monitoring."],
+  ["AGV S3", 18, "Updated navigation firmware and tested the route."],
+  ["AGV S4", 22, "Routine service: lubrication and bolt tightening."],
+  ["Forklift S-FK1", 14, "250-hour service and air filter replacement."],
+  ["Scan Drone S-D1", 9, "Battery test and camera calibration."],
+  ["Sorter Belt 1", 30, "Replaced the roller bearing on roller 12 and adjusted belt tension."],
+  ["Sorter Belt 2", 17, "Lubricated the drive chain and checked the belt."],
 ]);

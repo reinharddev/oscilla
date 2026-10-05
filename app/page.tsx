@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Game from "@/components/Game";
 import NoLayout from "@/components/NoLayout";
+import { getLang } from "@/lib/i18n/server";
+import { makeT } from "@/lib/i18n";
 import { LayoutSchema } from "@/lib/layout-schema";
 import { createClient } from "@/lib/supabase/server";
 import type { HydrateInput, Role } from "@/lib/store";
@@ -9,6 +11,7 @@ const RANK: Record<Role, number> = { viewer: 0, technician: 1, manager: 2, admin
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ w?: string }> }) {
   const { w } = await searchParams;
+  const lang = await getLang();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -21,14 +24,14 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ w
     supabase.from("organizations").select("name").limit(1),
   ]);
   const names: Record<string, string> = Object.fromEntries((prof.data ?? []).map((p) => [p.id, p.full_name]));
-  const name = names[user.id] || user.email || "Pengguna";
+  const name = names[user.id] || user.email || makeT(lang)("common.user");
   const all = wh.data ?? [];
   const warehouse = all.find((x) => x.id === w) ?? all[0];
-  if (!warehouse) return <NoLayout name={name} warehouses={[]} reason="Akunmu belum memiliki akses ke gudang mana pun." />;
+  if (!warehouse) return <NoLayout name={name} warehouses={[]} reason="nolayout.noAccess" lang={lang} />;
 
   const parsed = LayoutSchema.safeParse(warehouse.layout);
   if (!parsed.success) {
-    return <NoLayout name={name} warehouses={[warehouse.name]} reason="Layout gudang ini belum dikonfigurasi atau tidak valid." />;
+    return <NoLayout name={name} warehouses={[warehouse.name]} reason="nolayout.badLayout" lang={lang} />;
   }
 
   const roles = (mem.data ?? [])
@@ -43,6 +46,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ w
   ]);
 
   const initial: HydrateInput = {
+    locale: lang,
     auth: { userId: user.id, email: user.email ?? "", name, role, orgName: org.data?.[0]?.name ?? "", warehouseName: warehouse.name, warehouseId: warehouse.id },
     names,
     warehouses: all.map((x) => ({ id: x.id, name: x.name })),

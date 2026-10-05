@@ -1,3 +1,4 @@
+import type { T } from "../i18n";
 import type { Confidence, Facts, LlmAnswer, Source } from "./types";
 
 /**
@@ -83,22 +84,23 @@ export function validateAnswer(answer: LlmAnswer, sources: Source[], facts: Fact
 }
 
 /** Qualitative level: the evidence has not been calibrated against real failures yet. */
-export function confidenceOf(facts: Facts, v: { clean: boolean }, manualSources: number): Confidence {
+export function confidenceOf(facts: Facts, v: { clean: boolean }, manualSources: number, t: T): Confidence {
   const basis: string[] = [];
   const h = facts.health;
-  if (!h) return { level: "low", basis: ["Analisis sensor tidak tersedia."] };
+  if (!h) return { level: "low", basis: [t("conf.noSensor")] };
   if (h.status === "healthy") {
-    basis.push(`Skor ${h.score}, tidak ada penyimpangan berarti.`);
+    basis.push(t("conf.healthy", { score: h.score }));
     return { level: h.score >= 90 ? "high" : "medium", basis };
   }
   const topZ = Math.max(0, ...h.evidence.map((e) => e.z_score));
+  const z = topZ.toFixed(1);
   let points = 0;
-  if (topZ >= 20) { points += 2; basis.push(`Penyimpangan terbesar sangat jelas (z ${topZ.toFixed(1)}).`); }
-  else if (topZ >= 5) { points += 1; basis.push(`Penyimpangan terbesar cukup jelas (z ${topZ.toFixed(1)}).`); }
-  else basis.push(`Penyimpangan lemah (z ${topZ.toFixed(1)}).`);
-  if (h.evidence.length >= 2) { points += 1; basis.push(`${h.evidence.length} fitur sinyal menyimpang bersamaan.`); }
-  if (manualSources >= 1) { points += 1; basis.push("Ada prosedur terkait di manual."); } else basis.push("Tidak ada prosedur terkait di manual.");
-  if (v.clean) points += 1; else { points -= 2; basis.push("Keluaran AI tidak lolos pemeriksaan sumber atau angka."); }
+  if (topZ >= 20) { points += 2; basis.push(t("conf.veryClear", { z })); }
+  else if (topZ >= 5) { points += 1; basis.push(t("conf.clear", { z })); }
+  else basis.push(t("conf.weak", { z }));
+  if (h.evidence.length >= 2) { points += 1; basis.push(t("conf.multi", { n: h.evidence.length })); }
+  if (manualSources >= 1) { points += 1; basis.push(t("conf.manual")); } else basis.push(t("conf.noManual"));
+  if (v.clean) points += 1; else { points -= 2; basis.push(t("conf.guardFail")); }
   return { level: points >= 4 ? "high" : points >= 2 ? "medium" : "low", basis };
 }
 
@@ -108,13 +110,14 @@ export function reviewOf(
   confidence: Confidence,
   v: { warnings: string[]; manualSources: number },
   llm: { needsHumanReview?: boolean; reviewReason?: string },
+  t: T,
 ): { required: boolean; reasons: string[] } {
   const reasons: string[] = [];
-  if (!facts.health) reasons.push("Analisis sensor tidak tersedia.");
-  if (facts.health?.status === "critical") reasons.push("Status kritis: teknisi harus mengonfirmasi sebelum tindakan apa pun.");
-  if (confidence.level === "low") reasons.push("Keyakinan rendah.");
-  if (facts.health && facts.health.status !== "healthy" && v.manualSources === 0) reasons.push("Tidak ada manual yang menjelaskan kondisi ini.");
+  if (!facts.health) reasons.push(t("rev.noSensor"));
+  if (facts.health?.status === "critical") reasons.push(t("rev.critical"));
+  if (confidence.level === "low") reasons.push(t("rev.low"));
+  if (facts.health && facts.health.status !== "healthy" && v.manualSources === 0) reasons.push(t("rev.noManual"));
   reasons.push(...v.warnings);
-  if (llm.needsHumanReview) reasons.push(llm.reviewReason ?? "AI meminta peninjauan teknisi.");
+  if (llm.needsHumanReview) reasons.push(llm.reviewReason || t("rev.llmAsked"));
   return { required: reasons.length > 0, reasons };
 }

@@ -1,3 +1,4 @@
+import { makeT } from "../i18n";
 import { executeTool } from "./tools";
 import { renderSteps } from "./render";
 import type { AgentResult, AssetBrief, Backend, Proposal, ToolContext, ToolStep } from "./types";
@@ -45,19 +46,19 @@ export function findAsset(question: string, assets: AssetBrief[], selectedId?: s
 
 export function parseDueDays(q: string): number {
   const s = q.toLowerCase();
-  if (/hari ini|sekarang/.test(s)) return 0;
-  if (/lusa/.test(s)) return 2;
-  if (/besok/.test(s)) return 1;
-  if (/minggu depan/.test(s)) return 7;
-  const m = /(\d{1,2})\s*hari/.exec(s);
+  if (/hari ini|sekarang|today|right now|\bnow\b/.test(s)) return 0;
+  if (/lusa|day after tomorrow/.test(s)) return 2;
+  if (/besok|tomorrow/.test(s)) return 1;
+  if (/minggu depan|next week/.test(s)) return 7;
+  const m = /(?:in\s+)?(\d{1,2})\s*(?:hari|days?)/.exec(s);
   return m ? Math.min(30, Number(m[1])) : 1;
 }
 
 const STATUS_WORD: [RegExp, "critical" | "attention" | "healthy" | "problem"][] = [
-  [/kritis|critical|parah|rusak/, "critical"],
-  [/perlu perhatian|waspada|attention/, "attention"],
-  [/bermasalah|masalah|bahaya|tidak sehat/, "problem"],
-  [/sehat|aman|normal/, "healthy"],
+  [/kritis|critical|parah|rusak|severe|failing|broken/, "critical"],
+  [/perlu perhatian|waspada|attention|warning/, "attention"],
+  [/bermasalah|masalah|bahaya|tidak sehat|problem|issue|unhealthy|at risk/, "problem"],
+  [/sehat|aman|normal|healthy|fine/, "healthy"],
 ];
 
 /**
@@ -67,6 +68,7 @@ const STATUS_WORD: [RegExp, "critical" | "attention" | "healthy" | "problem"][] 
  */
 export async function runRules(question: string, backend: Backend, ctx: ToolContext): Promise<AgentResult> {
   const t0 = Date.now();
+  const t = makeT(ctx.lang);
   const q = question.toLowerCase();
   const steps: ToolStep[] = [];
   const proposals: Proposal[] = [];
@@ -85,33 +87,33 @@ export async function runRules(question: string, backend: Backend, ctx: ToolCont
   const ref = match.asset?.id;
 
   if (match.ambiguous) {
-    return { mode: "rules", answer: `Nama mesin kurang jelas. Maksud kamu: ${match.ambiguous.map((a) => a.name).join(", ")}?`, steps, proposals, warnings, latencyMs: Date.now() - t0 };
+    return { mode: "rules", answer: t("ag.ambiguous", { list: match.ambiguous.map((a) => a.name).join(", ") }), steps, proposals, warnings, latencyMs: Date.now() - t0 };
   }
 
   // The question names a machine code (FK-02, R2, S1…) that is not among the machines this user can see.
-  const code = ref ? null : /\b[a-z]{1,4}-\d{1,4}\b|\b[a-z]{1,3}\d{1,4}\b|\b[a-z]{2,3}\s\d{2}\b/i.exec(question);
+  const code = ref ? null : /\b[a-z]{1,4}-\d{1,4}\b|\b[a-z]{1,3}\d{1,4}\b|\b(?:fk|agv|dr|cv)\s\d{1,4}\b/i.exec(question);
   if (code) {
-    return { mode: "rules", answer: `Mesin "${code[0]}" tidak ditemukan, atau kamu tidak punya akses ke mesin tersebut.`, steps, proposals, warnings, latencyMs: Date.now() - t0 };
+    return { mode: "rules", answer: t("ag.notFoundCode", { code: code[0] }), steps, proposals, warnings, latencyMs: Date.now() - t0 };
   }
 
-  const wantsProposal = /(buat|buatkan|bikin|jadwalkan|jadwal kan|schedule)/.test(q) && /(work order|servis|service|maintenance|perawatan|perbaikan|inspeksi)/.test(q);
-  const wantsJournal = /(jurnal|catatan|riwayat|history)/.test(q);
-  const wantsService = /(terakhir|kapan).*(servis|diservis|service|maintenance)|servis terakhir/.test(q);
-  const wantsOrders = /(work order|terjadwal|jadwal)/.test(q);
-  const wantsManual = /(manual|prosedur|cara|langkah|panduan|ganti)/.test(q);
-  const wantsWhy = /(kenapa|mengapa|penyebab|diagnosis|diagnosa|analisis|ada apa|bagaimana kondisi|kondisi)/.test(q);
+  const wantsProposal = /(buat|buatkan|bikin|jadwalkan|jadwal kan|schedule|create|book|arrange|plan)/.test(q) && /(work order|servis|service|maintenance|perawatan|perbaikan|inspeksi|inspection|repair)/.test(q);
+  const wantsJournal = /(jurnal|catatan|riwayat|history|journal|notes?\b)/.test(q);
+  const wantsService = /(terakhir|kapan).*(servis|diservis|service|maintenance)|servis terakhir|last (serviced|service|maintenance)|when .*(serviced|service|maintained)/.test(q);
+  const wantsOrders = /(work order|terjadwal|jadwal|scheduled|schedule)/.test(q);
+  const wantsManual = /(manual|prosedur|cara|langkah|panduan|ganti|procedure|how to|steps|guide|replace)/.test(q);
+  const wantsWhy = /(kenapa|mengapa|penyebab|diagnosis|diagnosa|analisis|ada apa|bagaimana kondisi|kondisi|why|cause|diagnos|what.?s wrong|what is wrong|condition|how is)/.test(q);
 
   if (wantsProposal) {
     if (!ref) {
-      intro.push("Mesin mana yang dimaksud? Sebutkan nama atau kodenya, misalnya \"jadwalkan servis FK-02 besok\".");
+      intro.push(t("ag.askWhich"));
     } else {
       const h = await run("get_asset_health", { asset: ref });
       const brief = (h.data as { brief?: AssetBrief; evidence?: { label: string }[] })?.brief;
       const top = (h.data as { evidence?: { label: string }[] })?.evidence?.[0];
       const status = brief?.status;
       const summary = brief?.score != null
-        ? `Inspeksi ${brief.name}: skor kesehatan ${brief.score}${top ? `, penyimpangan terbesar pada ${top.label}` : ""}.`
-        : `Inspeksi rutin ${match.asset!.name}.`;
+        ? t("ag.proposeSummary", { name: brief.name, score: brief.score, top: top ? t("ag.proposeTop", { label: top.label }) : "" })
+        : t("ag.proposeRoutine", { name: match.asset!.name });
       await run("propose_work_order", {
         asset: ref, summary, due_in_days: parseDueDays(q),
         urgency: status === "critical" ? "immediate" : status === "attention" ? "within_days" : "monitor",
@@ -140,11 +142,11 @@ export async function runRules(question: string, backend: Backend, ctx: ToolCont
     if (hit) {
       await run("list_assets", { status: hit[1] });
     } else {
-      intro.push("Saya belum yakin maksud pertanyaannya, jadi ini ringkasan mesin yang perlu perhatian. Coba tanyakan misalnya \"mesin mana yang kritis?\" atau \"kenapa FK-02 skornya turun?\".");
+      intro.push(t("ag.overview"));
       await run("list_assets", { status: "problem" });
     }
   }
 
-  const answer = [...intro, renderSteps(steps)].filter(Boolean).join("\n\n");
+  const answer = [...intro, renderSteps(steps, ctx.lang)].filter(Boolean).join("\n\n");
   return { mode: "rules", answer, steps, proposals, warnings, latencyMs: Date.now() - t0 };
 }

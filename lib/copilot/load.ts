@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { featureLabel, LIMIT, type Evidence } from "../health";
+import { dateLocale, makeT, type Lang } from "../i18n";
 import type { JournalSnippet } from "./index";
 import type { Facts } from "./types";
 
@@ -17,7 +18,8 @@ export interface LoadedAsset {
  * Supabase client, so row-level security decides what exists: an asset the user cannot see
  * simply comes back as null.
  */
-export async function loadCopilotInputs(supabase: SupabaseClient, assetId: string): Promise<LoadedAsset | null> {
+export async function loadCopilotInputs(supabase: SupabaseClient, assetId: string, lang: Lang = "en"): Promise<LoadedAsset | null> {
+  const t = makeT(lang);
   const { data: asset } = await supabase
     .from("assets")
     .select("id, name, serial_number, type, manufacturer, model, warehouse_id")
@@ -39,7 +41,7 @@ export async function loadCopilotInputs(supabase: SupabaseClient, assetId: strin
     ? {
         score: Math.round(Number(s.score)),
         status: s.status,
-        evidence: ((s.evidence ?? []) as Evidence[]).map((e) => ({ ...e, labelId: featureLabel(e) })),
+        evidence: ((s.evidence ?? []) as Evidence[]).map((e) => ({ ...e, labelId: featureLabel(e, t) })),
         modelVersion: s.model_version ?? "unknown",
         takenAt: s.taken_at,
       }
@@ -59,7 +61,7 @@ export async function loadCopilotInputs(supabase: SupabaseClient, assetId: strin
   const journal: JournalSnippet[] = (jr.data ?? [])
     .filter((j) => j.kind !== "alert") // simulated alerts are not evidence
     .map((j) => ({
-      when: new Date(j.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
+      when: new Date(j.created_at).toLocaleDateString(dateLocale(lang), { day: "numeric", month: "short", year: "numeric" }),
       author: names.get(j.author_id),
       kind: j.kind,
       text: j.body,

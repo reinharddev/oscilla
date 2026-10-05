@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import manuals from "@/knowledge/manuals.json";
 import { runAgent, type ChatTurn } from "@/lib/agent";
 import { supabaseBackend } from "@/lib/agent/backend-supabase";
+import { getLang } from "@/lib/i18n/server";
 import type { ManualChunk } from "@/lib/copilot/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -47,8 +48,9 @@ export async function POST(request: Request) {
     : [];
   const selected = typeof body.selectedAssetId === "string" && UUID.test(body.selectedAssetId) ? body.selectedAssetId : null;
 
+  const lang = await getLang();
   const llm = llmConfig();
-  const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm);
-  const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected });
+  const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm, lang);
+  const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected, lang });
   return NextResponse.json({ ...result, llmConfigured: Boolean(llm) });
 }

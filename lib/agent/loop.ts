@@ -1,10 +1,13 @@
 import { extractNumbers, unverifiedNumbers } from "../copilot/guard";
+import { makeT, type Lang } from "../i18n";
 import type { LlmConfig } from "../copilot/llm";
 import { renderSteps } from "./render";
 import { executeTool, toolSpecs } from "./tools";
 import type { AgentResult, Backend, ChatTurn, Proposal, ToolContext, ToolStep } from "./types";
 
-export const SYSTEM_PROMPT = `You are Oscilla Assistant. You help warehouse staff ask questions about machine health, maintenance schedules and service journals.
+const LANGUAGE: Record<Lang, string> = { en: "English", id: "Indonesian" };
+
+export const systemPrompt = (lang: Lang) => `You are Oscilla Assistant. You help warehouse staff ask questions about machine health, maintenance schedules and service journals.
 
 Rules:
 1. Use the tools to look things up. Never guess machine data.
@@ -12,8 +15,11 @@ Rules:
 3. You cannot change anything. To schedule maintenance, call propose_work_order: it only creates a proposal that the user must confirm.
 4. If a tool answers "forbidden" or "not_found", tell the user plainly. Do not try to work around it.
 5. Only talk about machine health and maintenance. Politely decline anything else.
-6. Answer in Indonesian, short and concrete. Every number you write must come from a tool result or the user's message. Do not invent durations, forecasts or dates.
+6. Answer in ${LANGUAGE[lang]}, short and concrete. Every number you write must come from a tool result or the user's message. Do not invent durations, forecasts or dates.
 7. When you propose a work order, say that it is a proposal waiting for the user's confirmation.`;
+
+/** Kept for tests and documentation: the English prompt. */
+export const SYSTEM_PROMPT = systemPrompt("en");
 
 const MAX_ROUNDS = 5;
 const MAX_CALLS = 8;
@@ -56,7 +62,8 @@ export async function runAgentLlm(opts: {
   const usage = { promptTokens: 0, completionTokens: 0 };
   let model: string | undefined;
 
-  const messages: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }];
+  const t = makeT(ctx.lang);
+  const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(ctx.lang) }];
   if (ctx.selectedAssetId) {
     const r = await backend.resolve(ctx.selectedAssetId);
     if (r.ok) messages.push({ role: "system", content: `The user currently has this machine open: ${r.asset.name} (${r.asset.serial}). "this machine" means it.` });
@@ -91,16 +98,16 @@ export async function runAgentLlm(opts: {
   }
 
   if (final === null || final === "") {
-    warnings.push("AI tidak memberi jawaban akhir; menampilkan hasil mentah dari alat.");
-    return { mode: "llm", answer: renderSteps(steps) || "Maaf, saya tidak bisa menjawab itu.", steps, proposals, warnings, model, usage, latencyMs: Date.now() - t0 };
+    warnings.push(t("ag.noFinal"));
+    return { mode: "llm", answer: renderSteps(steps, ctx.lang) || t("ag.cannotAnswer"), steps, proposals, warnings, model, usage, latencyMs: Date.now() - t0 };
   }
 
   // The answer may only restate what the tools returned. If it adds numbers nobody supplied, reject it.
   const corpus = [question, ...(opts.history ?? []).map((h) => h.content), ...steps.map((s) => JSON.stringify(s.data))].join(" ");
   const bad = verify(final, corpus);
   if (bad.length) {
-    warnings.push(`Jawaban AI ditolak: angka tidak ditemukan di hasil alat (${bad.join(", ")}). Ditampilkan hasil langsung dari alat.`);
-    return { mode: "llm", answer: renderSteps(steps) || "Maaf, saya tidak bisa memverifikasi jawabannya.", steps, proposals, warnings, answerRejected: true, rejectedAnswer: final, model, usage, latencyMs: Date.now() - t0 };
+    warnings.push(t("ag.rejectedNumbers", { nums: bad.join(", ") }));
+    return { mode: "llm", answer: renderSteps(steps, ctx.lang) || t("ag.cannotVerify"), steps, proposals, warnings, answerRejected: true, rejectedAnswer: final, model, usage, latencyMs: Date.now() - t0 };
   }
   return { mode: "llm", answer: final, steps, proposals, warnings, model, usage, latencyMs: Date.now() - t0 };
 }

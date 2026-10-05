@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { makeT, type T } from "../i18n";
 import type { Backend, Proposal, ToolContext } from "./types";
 
 const ref = z.string().min(1).max(80).describe("Machine name, serial number, or short code such as FK-02. Use 'selected' for the machine the user has open.");
@@ -16,10 +17,10 @@ async function find(b: Backend, r: string, ctx: ToolContext) {
   const key = ["selected", "this", "ini", "mesin ini"].includes(wanted) && ctx.selectedAssetId ? ctx.selectedAssetId : r;
   return b.resolve(key);
 }
-const notFound = (r: Extract<Awaited<ReturnType<typeof find>>, { ok: false }>): ToolResult => ({
+const notFound = (r: Extract<Awaited<ReturnType<typeof find>>, { ok: false }>, t: T): ToolResult => ({
   ok: false,
   data: { error: r.reason, candidates: r.candidates },
-  summary: r.reason === "ambiguous" ? `nama ambigu (${r.candidates.slice(0, 3).join(", ")})` : "mesin tidak ditemukan atau tidak boleh diakses",
+  summary: r.reason === "ambiguous" ? t("tool.ambiguous", { list: r.candidates.slice(0, 3).join(", ") }) : t("tool.notFound"),
 });
 
 const defs = {
@@ -30,9 +31,9 @@ const defs = {
       type: z.enum(["forklift", "agv", "drone", "conveyor", "robot_arm"]).optional(),
       limit: z.number().int().min(1).max(30).optional(),
     }),
-    async run(b: Backend, a: { status?: "healthy" | "attention" | "critical" | "problem"; type?: string; limit?: number }): Promise<ToolResult> {
+    async run(b: Backend, a: { status?: "healthy" | "attention" | "critical" | "problem"; type?: string; limit?: number }, ctx: ToolContext): Promise<ToolResult> {
       const rows = await b.listAssets({ status: a.status, type: a.type, limit: a.limit ?? 30 });
-      return { ok: true, data: { count: rows.length, machines: rows }, summary: `${rows.length} mesin` };
+      return { ok: true, data: { count: rows.length, machines: rows }, summary: makeT(ctx.lang)("tool.machines", { n: rows.length }) };
     },
   },
   get_asset_health: {
@@ -40,10 +41,10 @@ const defs = {
     schema: z.object({ asset: ref }),
     async run(b: Backend, a: { asset: string }, ctx: ToolContext): Promise<ToolResult> {
       const r = await find(b, a.asset, ctx);
-      if (!r.ok) return notFound(r);
+      if (!r.ok) return notFound(r, makeT(ctx.lang));
       const h = await b.health(r.asset.id);
-      if (!h) return { ok: false, data: { error: "no_data" }, summary: "belum ada data kesehatan" };
-      return { ok: true, data: h, summary: `${r.asset.name}: skor ${h.brief.score ?? "-"}` };
+      if (!h) return { ok: false, data: { error: "no_data" }, summary: makeT(ctx.lang)("tool.noHealth") };
+      return { ok: true, data: h, summary: makeT(ctx.lang)("tool.score", { name: r.asset.name, score: h.brief.score ?? "-" }) };
     },
   },
   get_journal: {
@@ -51,9 +52,9 @@ const defs = {
     schema: z.object({ asset: ref, limit: z.number().int().min(1).max(10).optional() }),
     async run(b: Backend, a: { asset: string; limit?: number }, ctx: ToolContext): Promise<ToolResult> {
       const r = await find(b, a.asset, ctx);
-      if (!r.ok) return notFound(r);
+      if (!r.ok) return notFound(r, makeT(ctx.lang));
       const rows = await b.journal(r.asset.id, a.limit ?? 5);
-      return { ok: true, data: { asset: r.asset.name, entries: rows }, summary: `${rows.length} entri jurnal ${r.asset.name}` };
+      return { ok: true, data: { asset: r.asset.name, entries: rows }, summary: makeT(ctx.lang)("tool.journalEntries", { n: rows.length, name: r.asset.name }) };
     },
   },
   list_work_orders: {
@@ -63,11 +64,11 @@ const defs = {
       let assetId: string | undefined;
       if (a.asset) {
         const r = await find(b, a.asset, ctx);
-        if (!r.ok) return notFound(r);
+        if (!r.ok) return notFound(r, makeT(ctx.lang));
         assetId = r.asset.id;
       }
       const rows = await b.workOrders({ assetId, status: a.status });
-      return { ok: true, data: { count: rows.length, workOrders: rows }, summary: `${rows.length} work order` };
+      return { ok: true, data: { count: rows.length, workOrders: rows }, summary: makeT(ctx.lang)("tool.workOrders", { n: rows.length }) };
     },
   },
   search_manuals: {
@@ -77,11 +78,11 @@ const defs = {
       let type: string | undefined;
       if (a.asset) {
         const r = await find(b, a.asset, ctx);
-        if (!r.ok) return notFound(r);
+        if (!r.ok) return notFound(r, makeT(ctx.lang));
         type = r.asset.type;
       }
       const hits = await b.manuals(a.query, type);
-      return { ok: true, data: { hits }, summary: `${hits.length} bagian manual` };
+      return { ok: true, data: { hits }, summary: makeT(ctx.lang)("tool.manualParts", { n: hits.length }) };
     },
   },
   diagnose_asset: {
@@ -89,16 +90,16 @@ const defs = {
     schema: z.object({ asset: ref }),
     async run(b: Backend, a: { asset: string }, ctx: ToolContext): Promise<ToolResult> {
       const r = await find(b, a.asset, ctx);
-      if (!r.ok) return notFound(r);
+      if (!r.ok) return notFound(r, makeT(ctx.lang));
       const c = await b.diagnose(r.asset.id);
-      if (!c) return { ok: false, data: { error: "no_data" }, summary: "diagnosis tidak tersedia" };
+      if (!c) return { ok: false, data: { error: "no_data" }, summary: makeT(ctx.lang)("tool.noDiagnosis") };
       const data = {
         asset: r.asset.name, summary: c.summary, likelyCause: c.likelyCause,
         recommendations: c.recommendations.map((x) => ({ action: x.action.replace(/\s*\[(?:M|J)\d+\]/g, ""), urgency: x.urgency })),
         confidence: c.confidence.level, reviewRequired: c.review.required, reviewReasons: c.review.reasons,
         sources: c.sources.map((s) => ({ id: s.id, title: s.title, detail: s.detail })),
       };
-      return { ok: true, data, summary: `diagnosis ${r.asset.name}` };
+      return { ok: true, data, summary: makeT(ctx.lang)("tool.diagnosis", { name: r.asset.name }) };
     },
   },
   propose_work_order: {
@@ -111,9 +112,9 @@ const defs = {
     }),
     async run(b: Backend, a: { asset: string; summary: string; due_in_days?: number; urgency?: Proposal["urgency"] }, ctx: ToolContext): Promise<ToolResult> {
       const r = await find(b, a.asset, ctx);
-      if (!r.ok) return notFound(r);
+      if (!r.ok) return notFound(r, makeT(ctx.lang));
       if (!(await b.canWrite(r.asset.id))) {
-        return { ok: false, data: { error: "forbidden", message: "Peran pengguna tidak boleh membuat work order untuk mesin ini." }, summary: "ditolak: tidak punya hak" };
+        return { ok: false, data: { error: "forbidden", message: makeT(ctx.lang)("tool.forbiddenMsg") }, summary: makeT(ctx.lang)("tool.forbidden") };
       }
       const dueAt = new Date(ctx.now() + (a.due_in_days ?? 1) * 86_400_000).toISOString();
       const proposal: Proposal = {
@@ -123,7 +124,7 @@ const defs = {
       return {
         ok: true,
         data: { proposed: true, requiresUserConfirmation: true, asset: r.asset.name, dueAt, summary: a.summary },
-        summary: `usulan work order ${r.asset.name}`,
+        summary: makeT(ctx.lang)("tool.proposal", { name: r.asset.name }),
         proposal,
       };
     },
@@ -145,12 +146,12 @@ export function toolSpecs() {
 /** Validate arguments and run one tool. Never throws: errors become a failed step the model can read. */
 export async function executeTool(b: Backend, name: string, rawArgs: unknown, ctx: ToolContext): Promise<ToolResult & { args: unknown }> {
   const tool = TOOL_BY_NAME.get(name);
-  if (!tool) return { ok: false, args: rawArgs, data: { error: "unknown_tool", name }, summary: "alat tidak dikenal" };
+  if (!tool) return { ok: false, args: rawArgs, data: { error: "unknown_tool", name }, summary: makeT(ctx.lang)("tool.unknown") };
   const parsed = tool.schema.safeParse(rawArgs ?? {});
-  if (!parsed.success) return { ok: false, args: rawArgs, data: { error: "invalid_arguments", issues: parsed.error.issues.slice(0, 3).map((i) => i.message) }, summary: "argumen tidak valid" };
+  if (!parsed.success) return { ok: false, args: rawArgs, data: { error: "invalid_arguments", issues: parsed.error.issues.slice(0, 3).map((i) => i.message) }, summary: makeT(ctx.lang)("tool.invalidArgs") };
   try {
     return { ...(await tool.run(b, parsed.data as never, ctx)), args: parsed.data };
   } catch (e) {
-    return { ok: false, args: parsed.data, data: { error: "tool_failed", message: (e as Error).message }, summary: "alat gagal dijalankan" };
+    return { ok: false, args: parsed.data, data: { error: "tool_failed", message: (e as Error).message }, summary: makeT(ctx.lang)("tool.failed") };
   }
 }

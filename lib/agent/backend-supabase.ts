@@ -5,6 +5,7 @@ import type { LlmConfig } from "../copilot/llm";
 import { searchManuals } from "../copilot/retrieve";
 import type { ManualChunk } from "../copilot/types";
 import { featureLabel, type Evidence } from "../health";
+import { dateLocale, makeT, type Lang } from "../i18n";
 import { findAsset } from "./rules";
 import type { AssetBrief, Backend, HealthDetail, Status } from "./types";
 
@@ -17,7 +18,8 @@ const DAY = 86_400_000;
  * row-level security, the agent can never read or reach more than its user can.
  * It has no write methods by design.
  */
-export function supabaseBackend(supabase: SupabaseClient, userId: string, manuals: ManualChunk[], llm: LlmConfig | null): Backend {
+export function supabaseBackend(supabase: SupabaseClient, userId: string, manuals: ManualChunk[], llm: LlmConfig | null, lang: Lang = "en"): Backend {
+  const t = makeT(lang);
   async function briefs(filter: { type?: string; ids?: string[] } = {}): Promise<AssetBrief[]> {
     let q = supabase.from("assets").select("id, name, serial_number, type, warehouse_id, warehouses ( name )").order("name");
     if (filter.type) q = q.eq("type", filter.type);
@@ -74,7 +76,7 @@ export function supabaseBackend(supabase: SupabaseClient, userId: string, manual
       const latest = snaps?.[0];
       return {
         brief,
-        evidence: ((latest?.evidence ?? []) as Evidence[]).map((e) => ({ label: featureLabel(e), value: e.value, baseline: e.baseline, z_score: e.z_score })),
+        evidence: ((latest?.evidence ?? []) as Evidence[]).map((e) => ({ label: featureLabel(e, t), value: e.value, baseline: e.baseline, z_score: e.z_score })),
         recentScores: (snaps ?? []).map((s) => Math.round(Number(s.score))),
         modelVersion: latest?.model_version ?? null,
         snapshotAgeMin: latest ? Math.round((Date.now() - Date.parse(latest.taken_at)) / 60_000) : null,
@@ -88,7 +90,7 @@ export function supabaseBackend(supabase: SupabaseClient, userId: string, manual
       ]);
       const names = new Map((prof.data ?? []).map((p) => [p.id as string, p.full_name as string]));
       return (jr.data ?? []).filter((j) => j.kind !== "alert").slice(0, limit).map((j) => ({
-        when: new Date(j.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }),
+        when: new Date(j.created_at).toLocaleDateString(dateLocale(lang), { day: "numeric", month: "short", year: "numeric" }),
         author: names.get(j.author_id), kind: j.kind, text: j.body,
       }));
     },
@@ -105,13 +107,13 @@ export function supabaseBackend(supabase: SupabaseClient, userId: string, manual
     },
 
     async manuals(query, type) {
-      return searchManuals(manuals, query, type ?? null, 3).map((h, i) => ({ id: `M${i + 1}`, title: h.chunk.docTitle, detail: `hal. ${h.chunk.page} · ${h.chunk.section}`, text: h.chunk.text }));
+      return searchManuals(manuals, query, type ?? null, 3).map((h, i) => ({ id: `M${i + 1}`, title: h.chunk.docTitle, detail: `${t("src.page", { n: h.chunk.page })} · ${h.chunk.section}`, text: h.chunk.text }));
     },
 
     async diagnose(assetId) {
-      const loaded = await loadCopilotInputs(supabase, assetId);
+      const loaded = await loadCopilotInputs(supabase, assetId, lang);
       if (!loaded) return null;
-      return runCopilot({ facts: loaded.facts, manuals, journal: loaded.journal, llm: llm });
+      return runCopilot({ facts: loaded.facts, manuals, journal: loaded.journal, llm, lang });
     },
 
     async canWrite(assetId) {

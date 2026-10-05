@@ -1,3 +1,4 @@
+import { makeT, type Lang } from "../i18n";
 import { buildQuery, searchManuals } from "./retrieve";
 import { callLlm, extractJson, type LlmConfig } from "./llm";
 import { buildMessages } from "./prompt";
@@ -13,27 +14,37 @@ export interface CopilotInput {
   journal: JournalSnippet[];
   llm?: LlmConfig | null;
   fetchImpl?: typeof fetch;
+  /** Language of everything the Copilot writes. English by default. */
+  lang?: Lang;
 }
 
-export function gatherSources(input: Pick<CopilotInput, "facts" | "manuals" | "journal">): Source[] {
+export function gatherSources(input: Pick<CopilotInput, "facts" | "manuals" | "journal" | "lang">): Source[] {
   const { facts, manuals, journal } = input;
+  const t = makeT(input.lang ?? "en");
   const query = buildQuery(facts.machine.type, facts.machine.model, facts.health?.evidence ?? [], facts.health?.score ?? null);
   const found = searchManuals(manuals, query, facts.machine.type, 3);
-  const sources: Source[] = found.map((f, i) => ({
-    id: `M${i + 1}`, kind: "manual", title: f.chunk.docTitle, detail: `hal. ${f.chunk.page} · ${f.chunk.section}`, text: f.chunk.text, sample: true,
-  }));
+  const sources: Source[] = found.map((f, i) => {
+    const pageLabel = t("src.page", { n: f.chunk.page });
+    return {
+      id: `M${i + 1}`, kind: "manual", title: f.chunk.docTitle, detail: `${pageLabel} · ${f.chunk.section}`,
+      section: f.chunk.section, pageLabel, text: f.chunk.text, sample: true,
+    };
+  });
   journal.slice(0, 4).forEach((j, i) => {
-    sources.push({ id: `J${i + 1}`, kind: "journal", title: `Jurnal mesin, ${j.when}${j.author ? ` (${j.author})` : ""}`, detail: j.kind, text: j.text });
+    sources.push({ id: `J${i + 1}`, kind: "journal", title: t("src.journalTitle", { when: j.when }) + (j.author ? ` (${j.author})` : ""), detail: j.kind, text: j.text });
   });
   return sources;
 }
 
 export async function runCopilot(input: CopilotInput): Promise<CopilotResult> {
   const t0 = Date.now();
+  const lang = input.lang ?? "en";
+  const t = makeT(lang);
   const { facts } = input;
-  const sources = gatherSources(input);
+  const sources = gatherSources({ ...input, lang });
   const manualSources = sources.filter((s) => s.kind === "manual").length;
-  const warnings: string[] = [];
+  const warnings: string[] = []; // everything shown to the user
+  const checkWarnings: string[] = []; // problems with the model's output: these affect confidence and review
 
   let answer: LlmAnswer | null = null;
   let mode: CopilotResult["mode"] = "template";
@@ -42,7 +53,7 @@ export async function runCopilot(input: CopilotInput): Promise<CopilotResult> {
 
   if (input.llm) {
     try {
-      const reply = await callLlm(input.llm, buildMessages(facts, sources), input.fetchImpl);
+      const reply = await callLlm(input.llm, buildMessages(facts, sources, lang), input.fetchImpl);
       const parsed = LlmAnswerSchema.safeParse(extractJson(reply.content));
       if (!parsed.success) throw new Error("reply does not match the expected shape");
       answer = parsed.data;
@@ -50,30 +61,29 @@ export async function runCopilot(input: CopilotInput): Promise<CopilotResult> {
       model = reply.model;
       usage = reply.usage;
     } catch (e) {
-      warnings.push(`LLM tidak dapat dipakai (${(e as Error).message}); memakai jawaban templat.`);
+      warnings.push(t("warn.llmUnavailable", { reason: (e as Error).message }));
     }
   }
-  if (!answer) answer = composeTemplate(facts, sources);
+  if (!answer) answer = composeTemplate(facts, sources, t);
 
   // Check the model's output; templates pass trivially because they only use supplied facts.
   let v = validateAnswer(answer, sources, facts);
   let rejected: CopilotResult["rejected"];
   if (mode === "llm") {
-    if (v.invalidCitations.length) warnings.push(`AI mengutip sumber yang tidak ada: ${v.invalidCitations.join(", ")}.`);
-    if (v.unverifiedNumbers.length) warnings.push(`Angka tidak ditemukan di data atau sumber: ${v.unverifiedNumbers.join(", ")}.`);
-    if (v.uncitedRecommendations) warnings.push(`${v.uncitedRecommendations} rekomendasi tanpa sumber yang valid.`);
-    if (v.invalidCitations.length || v.unverifiedNumbers.length || v.uncitedRecommendations) {
+    if (v.invalidCitations.length) checkWarnings.push(t("warn.badCitation", { ids: v.invalidCitations.join(", ") }));
+    if (v.unverifiedNumbers.length) checkWarnings.push(t("warn.badNumber", { nums: v.unverifiedNumbers.join(", ") }));
+    if (v.uncitedRecommendations) checkWarnings.push(t("warn.uncited", { n: v.uncitedRecommendations }));
+    if (checkWarnings.length) {
       // A fabricated answer is never shown as the answer: keep it for transparency, show the template.
       rejected = { summary: v.answer.summary, likelyCause: v.answer.likelyCause ?? "", recommendations: v.answer.recommendations };
-      warnings.unshift("Jawaban AI ditolak karena tidak lolos pemeriksaan; yang ditampilkan adalah jawaban templat dari data dan manual.");
-      v = validateAnswer(composeTemplate(facts, sources), sources, facts);
+      warnings.push(t("warn.rejected"), ...checkWarnings);
+      v = validateAnswer(composeTemplate(facts, sources, t), sources, facts);
       mode = "template";
     }
   }
-  const real = warnings.filter((w) => !w.startsWith("LLM tidak"));
-  const clean = real.length === 0;
-  const confidence = confidenceOf(facts, { clean }, manualSources);
-  const review = reviewOf(facts, confidence, { warnings: real, manualSources }, v.answer);
+  const clean = checkWarnings.length === 0;
+  const confidence = confidenceOf(facts, { clean }, manualSources, t);
+  const review = reviewOf(facts, confidence, { warnings: checkWarnings, manualSources }, v.answer, t);
 
   return {
     mode, model,

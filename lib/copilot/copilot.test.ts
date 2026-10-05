@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import manuals from "../../knowledge/manuals.json";
 import { allowedDurations, extractNumbers, unverifiedDurations, unverifiedNumbers } from "./guard";
-import { gatherSources, runCopilot } from "./index";
+import { gatherSources, runCopilot as runCopilotBase, type CopilotInput } from "./index";
 import { buildQuery, searchManuals, tokenize } from "./retrieve";
 import type { Facts, ManualChunk } from "./types";
 
 const chunks = manuals as ManualChunk[];
+/** Existing assertions are written for Indonesian output. */
+const runCopilot = (o: CopilotInput) => runCopilotBase({ lang: "id", ...o });
 
 const bearingEvidence = [
   { feature: "bpfo_envelope_ratio", label: "Energy at the bearing defect frequency", labelId: "Energi di frekuensi cacat bearing", value: 30.42, baseline: 1.84, z_score: 64.5 },
@@ -61,7 +63,7 @@ describe("retrieval", () => {
   });
 
   it("builds sources with stable ids", () => {
-    const s = gatherSources({ facts: facts(), manuals: chunks, journal });
+    const s = gatherSources({ facts: facts(), manuals: chunks, journal, lang: "id" });
     expect(s.map((x) => x.id)).toEqual(expect.arrayContaining(["M1", "J1"]));
     expect(s.find((x) => x.id === "M1")!.sample).toBe(true);
   });
@@ -186,5 +188,39 @@ describe("LLM mode", () => {
   it("accepts JSON wrapped in a code fence", async () => {
     const r = await runCopilot({ facts: facts(), manuals: chunks, journal, llm, fetchImpl: fakeLlm("```json\n" + good() + "\n```") });
     expect(r.mode).toBe("llm");
+  });
+});
+
+describe("English output", () => {
+  const en = (o: Partial<CopilotInput> = {}) => runCopilotBase({ facts: facts(), manuals: chunks, journal, ...o });
+
+  it("is the default language and writes in English", async () => {
+    const r = await en();
+    expect(r.summary).toContain("health score 34 (critical)");
+    expect(r.likelyCause).toMatch(/bearing wear/);
+    expect(r.review.reasons.join(" ")).toMatch(/Critical status/);
+    expect(r.recommendations[0].action).toMatch(/Inspect following/);
+    expect(r.sources.find((s) => s.id === "M1")!.detail).toMatch(/^p\. \d+ · /);
+    expect(r.confidence.basis.join(" ")).toMatch(/very clear/);
+  });
+
+  it("rejects a fabricated answer with English warnings", async () => {
+    const bad = good({ summary: "FK-02 is failing and will stop in 3 days." });
+    const r = await en({ llm, fetchImpl: fakeLlm(bad) });
+    expect(r.llmRejected).toBe(true);
+    expect(r.warnings.join(" ")).toMatch(/rejected/);
+    expect(r.warnings.join(" ")).toContain("3 days");
+  });
+
+  it("asks the model for the right language", async () => {
+    let seen = "";
+    const spy = (async (_u: string, init: { body: string }) => {
+      seen = JSON.parse(init.body).messages[0].content;
+      return new Response(JSON.stringify({ choices: [{ message: { content: good() } }] }));
+    }) as unknown as typeof fetch;
+    await en({ llm, fetchImpl: spy });
+    expect(seen).toContain("in English");
+    await runCopilotBase({ facts: facts(), manuals: chunks, journal, llm, fetchImpl: spy, lang: "id" });
+    expect(seen).toContain("in Indonesian");
   });
 });

@@ -3,6 +3,7 @@ import manuals from "@/knowledge/manuals.json";
 import { runCopilot } from "@/lib/copilot";
 import type { ManualChunk } from "@/lib/copilot/types";
 import { loadCopilotInputs } from "@/lib/copilot/load";
+import { getLang } from "@/lib/i18n/server";
 import { createClient } from "@/lib/supabase/server";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,11 +39,12 @@ export async function POST(request: Request) {
   try { assetId = ((await request.json()) as { assetId?: unknown }).assetId; } catch { /* handled below */ }
   if (typeof assetId !== "string" || !UUID.test(assetId)) return NextResponse.json({ error: "assetId (uuid) required" }, { status: 400 });
 
-  const loaded = await loadCopilotInputs(supabase, assetId);
+  const lang = await getLang();
+  const loaded = await loadCopilotInputs(supabase, assetId, lang);
   if (!loaded) return NextResponse.json({ error: "not found" }, { status: 404 });
   const { facts, journal, asset } = loaded;
 
   const llm = llmConfig();
-  const result = await runCopilot({ facts, manuals: manuals as ManualChunk[], journal, llm });
+  const result = await runCopilot({ facts, manuals: manuals as ManualChunk[], journal, llm, lang });
   return NextResponse.json({ ...result, machine: asset.name, llmConfigured: Boolean(llm), snapshotAt: facts.health?.takenAt ?? null });
 }
