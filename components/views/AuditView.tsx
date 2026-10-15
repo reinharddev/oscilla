@@ -22,7 +22,7 @@ export function AuditView() {
   };
 
   return (
-    <Page title={t("audit.title")}>
+    <Page title={t("audit.title")} purpose={t("purpose.audit")}>
       <Panel flush>
         <Table className="min-w-[620px]">
           <TableHeader>

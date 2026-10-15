@@ -17,7 +17,7 @@ export function SourcesView() {
   const age = (ms: number) => (ms < 90 * 60_000 ? `${Math.max(1, Math.round(ms / 60_000))} min` : `${Math.round(ms / 3_600_000)} h`);
 
   return (
-    <Page title={t("ds.title")}>
+    <Page title={t("ds.title")} purpose={t("purpose.sources")}>
       <p className="text-sm text-muted-foreground">{t("ds.note")}</p>
       <Panel flush>
         <Table className="min-w-[700px]">

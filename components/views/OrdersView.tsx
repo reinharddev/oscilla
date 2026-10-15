@@ -32,7 +32,7 @@ export function OrdersView() {
   const assignee = (id?: string | null) => (id ? names[id] || people.find((p) => p.user_id === id)?.full_name || "–" : t("orders.unassigned"));
 
   return (
-    <Page title={t("orders.title")} aside={auth?.warehouseName}>
+    <Page title={t("orders.title")} purpose={t("purpose.orders")} aside={auth?.warehouseName}>
       <ToggleGroup type="single" variant="outline" size="sm" value={filter} onValueChange={(v) => v && setFilter(v as Filter)} className="justify-start" spacing={0}>
         {(["open", "done", "all"] as const).map((f) => <ToggleGroupItem key={f} value={f}>{t(`orders.${f}` as Key)}</ToggleGroupItem>)}
       </ToggleGroup>

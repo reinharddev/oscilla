@@ -16,7 +16,7 @@ export function useOpenMachine() {
   };
 }
 
-export function Page({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+export function Page({ title, aside, purpose, children }: { title: string; aside?: React.ReactNode; purpose?: string; children: React.ReactNode }) {
   return (
     <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6">
@@ -24,6 +24,7 @@ export function Page({ title, aside, children }: { title: string; aside?: React.
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {aside && <div className="text-sm text-muted-foreground">{aside}</div>}
         </div>
+        {purpose && <p className="-mt-2 max-w-2xl text-sm text-muted-foreground">{purpose}</p>}
         {children}
       </div>
     </div>

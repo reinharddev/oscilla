@@ -23,7 +23,7 @@ export function OverviewView() {
     .sort((a, b) => a.h.score - b.h.score);
 
   return (
-    <Page title={t("view.overview")} aside={auth?.warehouseName}>
+    <Page title={t("view.overview")} purpose={t("purpose.overview")} aside={auth?.warehouseName}>
       {auth?.role === "viewer" && (
         <Alert><Info /><AlertDescription>{t("ov2.readOnly")}</AlertDescription></Alert>
       )}

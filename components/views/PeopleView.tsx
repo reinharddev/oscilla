@@ -17,7 +17,7 @@ export function PeopleView() {
   const scope = (id: string | null) => (id === null ? t("people.all") : warehouses.find((w) => w.id === id)?.name ?? "–");
 
   return (
-    <Page title={t("people.title")} aside={auth?.orgName}>
+    <Page title={t("people.title")} purpose={t("purpose.people")} aside={auth?.orgName}>
       <Panel flush>
         <Table className="min-w-[560px]">
           <TableHeader>

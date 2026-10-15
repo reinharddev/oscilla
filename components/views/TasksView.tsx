@@ -72,7 +72,7 @@ export function TasksView() {
   );
 
   return (
-    <Page title={t("tasks.title")} aside={auth?.warehouseName}>
+    <Page title={t("tasks.title")} purpose={t("purpose.tasks")} aside={auth?.warehouseName}>
       <Panel title={t("tasks.mine")} description={String(mine.length)}>
         {mine.length === 0 ? none(t("tasks.noneMine")) : <List items={mine} mineRows />}
       </Panel>
