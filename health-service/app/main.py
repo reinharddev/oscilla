@@ -25,7 +25,7 @@ def hash_seed(text: str) -> int:
     return h
 
 
-app = FastAPI(title="Oscilla Health Service", version="0.1.0")
+app = FastAPI(title="Oscilla Health Service", version="0.2.0")
 _baselines: dict[str, Baseline] = {}
 _lock = threading.Lock()
 
