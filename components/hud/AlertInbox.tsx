@@ -6,7 +6,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { fmtDateTime } from "@/lib/i18n";
+import { fmtDateTime, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { canWrite, useStore } from "@/lib/store";
 
@@ -22,14 +22,14 @@ export function AlertInbox() {
   const closed = alerts.filter((a) => a.status === "resolved");
   const label = (id: string) => machines.find((m) => m.id === id)?.label ?? id;
 
-  function explain(assetId: string) {
+  function explain(assetId: string, askCopilot = true) {
     const m = machines.find((x) => x.id === assetId);
     if (!m) return;
     const s = useStore.getState();
     s.select(m);
     s.setView("machines");
     s.showTab("machine");
-    s.requestCopilot(assetId);
+    if (askCopilot) s.requestCopilot(assetId);
     setOpen(false);
   }
 
@@ -63,17 +63,34 @@ export function AlertInbox() {
                     <div className="flex flex-col gap-2 py-4">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium">{label(a.asset_id)}</span>
-                        <StatusBadge status={a.severity}>{t(a.severity === "critical" ? "alerts.critical" : "alerts.attention")}</StatusBadge>
+                        <StatusBadge status={a.severity}>
+                          {a.kind === "data_quality" ? t("alerts.dq") : t(a.severity === "critical" ? "alerts.critical" : "alerts.attention")}
+                        </StatusBadge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {a.headline || t("alerts.shift")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {[t("alerts.score", { n: Math.round(a.score) }), rul != null ? t("alerts.rul", { n: Math.max(0, Math.round(rul)) }) : null, t("alerts.since", { when: fmtDateTime(a.created_at, lang) })]
-                          .filter(Boolean).join(" · ")}
-                      </p>
+                      {a.kind === "data_quality" ? (
+                        <>
+                          <ul className="text-sm text-muted-foreground">
+                            {a.headline.split(",").filter(Boolean).map((code) => <li key={code}>{t(`alerts.dq.${code}` as Key)}</li>)}
+                          </ul>
+                          <p className="text-xs text-muted-foreground">
+                            {t("alerts.dq.note")} · {t("alerts.since", { when: fmtDateTime(a.created_at, lang) })}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">{a.headline || t("alerts.shift")}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {[t("alerts.score", { n: Math.round(a.score) }), rul != null ? t("alerts.rul", { n: Math.max(0, Math.round(rul)) }) : null, t("alerts.since", { when: fmtDateTime(a.created_at, lang) })]
+                              .filter(Boolean).join(" · ")}
+                          </p>
+                        </>
+                      )}
                       <div className="flex gap-2">
-                        <Button size="sm" onClick={() => explain(a.asset_id)}>{t("alerts.explain")}</Button>
+                        {a.kind === "data_quality" ? (
+                          <Button size="sm" variant="outline" onClick={() => explain(a.asset_id, false)}>{t("alerts.open.machine")}</Button>
+                        ) : (
+                          <Button size="sm" onClick={() => explain(a.asset_id)}>{t("alerts.explain")}</Button>
+                        )}
                         {a.status === "open" && canWrite(auth) && (
                           <Button size="sm" variant="outline" onClick={() => void useStore.getState().acknowledgeAlert(a.id)}>{t("alerts.ack")}</Button>
                         )}

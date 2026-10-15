@@ -318,18 +318,22 @@ test("assistant chat history is private to its author", async () => {
   assert.equal((await as(U.techA, "select id from public.agent_messages")).rows.length, 1);
 });
 
-test("alerts: raised and escalated by readings, closed when healthy, visible only to the warehouse, acknowledged by writers", async () => {
+test("alerts: confirmed by two readings, escalate, close after two healthy readings, scoped to the warehouse, acknowledged by writers", async () => {
   await db.exec("set role service_role");
   const snap = (status, score) => db.query(
     "insert into public.health_snapshots (asset_id, org_id, warehouse_id, score, status, evidence) values ($1, $2, $3, $4, $5, '[{\"label\":\"Bearing energy\"}]'::jsonb)",
     [assetA, ORG, WH_A, score, status]);
+  const active = async (kind = "health") =>
+    (await db.query("select severity, status, headline from public.alerts where asset_id = $1 and kind = $2 and status <> 'resolved'", [assetA, kind])).rows;
   await db.query("delete from public.alerts where asset_id = $1", [assetA]);
+
   await snap("healthy", 95);
-  assert.equal((await db.query("select count(*)::int n from public.alerts where asset_id = $1", [assetA])).rows[0].n, 0);
-  await snap("attention", 60);
-  await snap("attention", 58);
-  let rows = (await db.query("select severity, status, headline from public.alerts where asset_id = $1 and status <> 'resolved'", [assetA])).rows;
-  assert.deepEqual(rows, [{ severity: "attention", status: "open", headline: "Bearing energy" }]);
+  await snap("attention", 60); // one noisy reading is not an alert
+  assert.deepEqual(await active(), []);
+  await snap("healthy", 94);
+  await snap("attention", 61);
+  await snap("attention", 58); // second consecutive
+  assert.deepEqual(await active(), [{ severity: "attention", status: "open", headline: "Bearing energy" }]);
   await db.exec("reset role");
 
   // Someone who can write acknowledges; a viewer and a technician of another warehouse cannot, and cannot even see it.
@@ -340,12 +344,32 @@ test("alerts: raised and escalated by readings, closed when healthy, visible onl
   await as(U.techA, "select public.acknowledge_alert($1)", [id]);
   assert.equal((await as(U.viewerA, "select status from public.alerts where id = $1", [id])).rows[0].status, "acknowledged");
 
-  // Escalation re-opens it; recovery closes it.
+  // A single critical reading does not escalate; two consecutive do, and that re-opens it.
   await db.exec("set role service_role");
   await snap("critical", 30);
-  rows = (await db.query("select severity, status from public.alerts where asset_id = $1 and status <> 'resolved'", [assetA])).rows;
-  assert.deepEqual(rows, [{ severity: "critical", status: "open" }]);
+  assert.deepEqual(await active(), [{ severity: "attention", status: "acknowledged", headline: "Bearing energy" }]);
+  await snap("critical", 28);
+  assert.deepEqual(await active(), [{ severity: "critical", status: "open", headline: "Bearing energy" }]);
+
+  // One healthy reading does not close it; two do.
   await snap("healthy", 96);
+  assert.equal((await active()).length, 1);
+  await snap("healthy", 97);
+  assert.deepEqual(await active(), []);
+  await db.exec("reset role");
+});
+
+test("data-quality alerts coexist with health alerts and close when readings arrive again", async () => {
+  await db.exec("set role service_role");
+  await db.query("delete from public.alerts where asset_id = $1", [assetA]);
+  await db.query(
+    "insert into public.alerts (org_id, warehouse_id, asset_id, severity, score, headline, kind) values ($1, $2, $3, 'attention', 0, 'flatline', 'data_quality')",
+    [ORG, WH_A, assetA]);
+  // Only one active alert of each kind per machine.
+  await assert.rejects(db.query(
+    "insert into public.alerts (org_id, warehouse_id, asset_id, severity, score, headline, kind) values ($1, $2, $3, 'attention', 0, 'clipping', 'data_quality')",
+    [ORG, WH_A, assetA]), /duplicate key|unique/);
+  await db.query("insert into public.health_snapshots (asset_id, org_id, warehouse_id, score, status) values ($1, $2, $3, 96, 'healthy')", [assetA, ORG, WH_A]);
   assert.equal((await db.query("select count(*)::int n from public.alerts where asset_id = $1 and status <> 'resolved'", [assetA])).rows[0].n, 0);
   await db.exec("reset role");
 });

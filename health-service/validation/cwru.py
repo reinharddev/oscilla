@@ -71,8 +71,13 @@ def run() -> dict:
     for num, (fault, dia) in FILES.items():
         if fault == "normal":
             continue
-        sc = np.array([score_window(baseline, extract_features(w, FS, RPM))["score"] for w in windows(load_signal(num))])
+        scored = [score_window(baseline, extract_features(w, FS, RPM)) for w in windows(load_signal(num))]
+        sc = np.array([r["score"] for r in scored])
+        types = [r["fault_type"] for r in scored]
+        named = max(set(types), key=types.count) if types else None
         rows.append({
+            "identified_as": named,
+            "identified_pct": round(100 * types.count(fault) / len(types), 1),
             "file": num, "fault": fault, "diameter_in": dia, "windows": len(sc),
             "median_score": round(float(np.median(sc)), 1),
             "p10_score": round(float(np.percentile(sc, 10)), 1),
@@ -89,6 +94,11 @@ def run() -> dict:
             "false_alarm_pct": round(100 * float(np.mean(held < 75)), 1),
         },
         "faults": rows,
+        "type": {
+            "named_correct": sum(r["identified_as"] == r["fault"] for r in rows),
+            "named_wrong": sum(r["identified_as"] not in (None, r["fault"]) for r in rows),
+            "not_named": sum(r["identified_as"] is None for r in rows),
+        },
     }
 
 
@@ -98,10 +108,13 @@ def render(r: dict) -> str:
         f"held-out normal: {r['heldout_normal_windows']} windows.",
         f"Held-out normal: median score {r['normal']['median_score']}, false alarms {r['normal']['false_alarm_pct']}% (score < 75).",
         "",
-        f"{'fault':<11}{'size':>7}{'wins':>6}{'median':>8}{'p10':>7}{'detected':>10}{'critical':>10}{'AUROC':>8}",
+        f"{'fault':<11}{'size':>7}{'wins':>6}{'median':>8}{'p10':>7}{'detected':>10}{'critical':>10}{'AUROC':>8}  {'identified as':<14}{'windows':>8}",
     ]
     for f in r["faults"]:
-        out.append(f"{f['fault']:<11}{f['diameter_in']:>7.3f}{f['windows']:>6}{f['median_score']:>8}{f['p10_score']:>7}{f['detected_pct']:>9}%{f['critical_pct']:>9}%{f['auroc']:>8}")
+        out.append(f"{f['fault']:<11}{f['diameter_in']:>7.3f}{f['windows']:>6}{f['median_score']:>8}{f['p10_score']:>7}{f['detected_pct']:>9}%{f['critical_pct']:>9}%{f['auroc']:>8}  {str(f['identified_as']):<14}{f['identified_pct']:>7}%")
+    out.append("")
+    t = r["type"]
+    out.append(f"Fault location (most frequent call per recording): named correctly {t['named_correct']}, named wrongly {t['named_wrong']}, left unnamed {t['not_named']} of {len(r['faults'])}.")
     return "\n".join(out)
 
 

@@ -65,6 +65,15 @@ dummy sensors (SIM_ENABLED=true) ───────────────�
 - **Trend.** Remaining life comes from the slope of stored scores, not from a stored guess; flat or improving trends show no estimate.
 - Set `SIM_ENABLED=false` when real gateways are connected.
 
+### What the scoring does and does not do
+
+- **Features** per one-second window: RMS, peak, crest factor, kurtosis, skewness, energy in five bands, and the envelope-spectrum peak at the **outer-race, inner-race and rolling-element** defect frequencies. Each is compared with the machine's own healthy baseline; the score is a smooth function of how far the window departs.
+- **Fault location** is named only when one defect-frequency peak is at least ten times the envelope noise floor and clearly ahead of the others; otherwise the window is flagged without a location. On the CWRU recordings it named the location correctly for 5 of 9, wrongly for 0 and left 4 unnamed (rolling-element faults are not recognised). The threshold was set after seeing those recordings.
+- **Untrustworthy windows are not scored.** A flat line, a clipped signal or a long run of zeros is rejected, and a *data quality* alert is raised instead of a health score: a dead sensor must not read as a healthy machine. Example: `curl -X POST .../api/ingest -H "x-ingest-key: ..." -d '{"serial_number":"FK-2024-0002","fs":12000,"signal":[0,0,...]}'` answers 422 and raises the alert.
+- **Alerts need two consecutive readings** out of range (and two healthy readings to close), so one noisy window does not raise one.
+- **Not done:** operating-condition awareness (load, speed) in the baseline, baseline re-learning after a repair, remaining-life uncertainty, calibrated thresholds. See Known limitations.
+- `npm run refit:baselines` re-learns the dummy machines' baselines so newer features are scored; older stored baselines keep working without it.
+
 ### How the AI is kept honest
 
 - Facts are loaded **under the caller's own permissions**. A machine the user cannot see simply does not exist for the Copilot or the agent.
@@ -188,5 +197,7 @@ How to read this honestly:
 - The ingest key is one shared secret per deployment; per-gateway keys and rate limiting are not built.
 - Raw windows are scored and discarded; only features, score and evidence are stored.
 - The companion channels (velocity, temperature, current) are dummy values next to the scored vibration window and do not feed the score.
+- One baseline per machine: operating conditions (load, speed) are not modelled, and a baseline is not re-learned automatically after a repair.
+- Fault location is only named when it is clear, and rolling-element faults are not recognised.
 - Work orders are internal. There is no CMMS or ERP integration yet.
 - The KPI-style numbers shown are computed from stored work orders and readings; the sample data set is small.

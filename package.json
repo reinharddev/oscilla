@@ -16,7 +16,8 @@
     "test:copilot": "vitest run",
     "check:llm": "node --env-file=.env.local scripts/check-llm.mjs",
     "mock:llm": "node scripts/mock-llm.mjs",
-    "test:remote": "node --env-file=.env.local node_modules/vitest/vitest.mjs run lib/agent/remote.test.ts"
+    "test:remote": "node --env-file=.env.local node_modules/vitest/vitest.mjs run lib/agent/remote.test.ts",
+    "refit:baselines": "node --env-file=.env.local scripts/refit-baselines.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

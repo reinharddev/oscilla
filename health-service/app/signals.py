@@ -13,6 +13,9 @@ import numpy as np
 
 # Outer-race defect frequency as a multiple of shaft frequency (typical 6205-type bearing).
 BPFO_ORDER = 3.585
+# Inner-race and rolling-element (ball spin) defect orders for the same bearing type.
+BPFI_ORDER = 5.415
+BSF_ORDER = 4.714
 RESONANCE_HZ = 3000.0
 DECAY_S = 0.0008
 
@@ -23,6 +26,14 @@ def shaft_hz(rpm: float) -> float:
 
 def bpfo_hz(rpm: float) -> float:
     return BPFO_ORDER * shaft_hz(rpm)
+
+
+def bpfi_hz(rpm: float) -> float:
+    return BPFI_ORDER * shaft_hz(rpm)
+
+
+def bsf_hz(rpm: float) -> float:
+    return BSF_ORDER * shaft_hz(rpm)
 
 
 def generate_vibration(

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { adminClient } from "@/lib/server/admin";
-import { scoreWindow } from "@/lib/server/health-client";
+import { isRejected, scoreWindow } from "@/lib/server/health-client";
 import { loadBaseline, recordSnapshot, type AssetRow } from "@/lib/server/snapshots";
 
 export function keyOk(request: Request): boolean {
@@ -43,6 +43,14 @@ export async function POST(request: Request) {
 
   try {
     const result = await scoreWindow(rpm, fs, signal as number[], baseline);
+    if (isRejected(result)) {
+      // Do not store a score for a window that cannot be trusted; tell people the sensor needs a look.
+      // One active alert per machine and kind: a unique violation just means it is already raised.
+      await admin.from("alerts").insert(
+        { org_id: a.org_id, warehouse_id: a.warehouse_id, asset_id: a.id, kind: "data_quality", severity: "attention", score: 0, headline: result.issues.join(","), status: "open" },
+      );
+      return NextResponse.json({ error: "window rejected: the signal cannot be trusted", issues: result.issues }, { status: 422 });
+    }
     await recordSnapshot(admin, a, result, "sensor");
     return NextResponse.json({ ok: true, score: result.score, status: result.status });
   } catch {

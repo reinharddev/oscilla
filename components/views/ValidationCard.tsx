@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n/use-t";
 import result from "@/knowledge/validation-cwru.json";
 
 const FAULT: Record<string, string> = { inner_race: "Inner race", ball: "Rolling element", outer_race: "Outer race" };
+const named = (v: string | null) => (v ? FAULT[v] ?? v : null);
 
 /** Results of scoring real bearing recordings with the production code. Only the derived numbers are kept in the repository. */
 export function ValidationCard() {
@@ -40,6 +41,7 @@ export function ValidationCard() {
               <TableHead>{t("val.fault")}</TableHead><TableHead className="text-right">{t("val.size")}</TableHead>
               <TableHead className="text-right">{t("val.windows")}</TableHead><TableHead className="text-right">{t("val.median")}</TableHead>
               <TableHead className="text-right">{t("val.outcome")}</TableHead>
+              <TableHead className="text-right">{t("val.named")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -52,10 +54,16 @@ export function ValidationCard() {
                 <TableCell className="text-right">
                   <StatusBadge status={f.detected_pct === 100 ? "healthy" : "attention"}>{f.detected_pct === 100 ? t("val.allFlagged") : `${f.detected_pct}%`}</StatusBadge>
                 </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {named(f.identified_as) ?? t("val.notNamed")}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        <p className="text-xs text-muted-foreground">
+          {t("val.typeSummary", { ok: result.type.named_correct, wrong: result.type.named_wrong, none: result.type.not_named, n: result.faults.length })}
+        </p>
         <p className="text-xs text-muted-foreground">{t("val.caveat")}</p>
       </CardContent>
     </Card>

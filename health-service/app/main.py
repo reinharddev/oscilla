@@ -13,7 +13,7 @@ import numpy as np
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .features import extract_features
+from .features import extract_features, window_quality
 from .scoring import MODEL_VERSION, Baseline, score_window
 from .signals import aux_channels, generate_vibration
 
@@ -202,8 +202,17 @@ def baseline_fit(req: FitRequest) -> dict:
 
 @app.post("/score", dependencies=[Depends(require_key)])
 def score(req: ScoreRequest) -> dict:
-    """Score one recorded window against the machine's own baseline."""
-    return _result(np.asarray(req.signal), req.fs, req.rpm, _baseline(req.baseline))
+    """Score one recorded window against the machine's own baseline.
+
+    A window that cannot be trusted (flatline, clipping, dropout) is not scored: it is reported as
+    rejected, so a dead sensor never reads as a healthy machine.
+    """
+    baseline = _baseline(req.baseline)  # a bad baseline is a caller error whatever the signal looks like
+    x = np.asarray(req.signal)
+    quality = window_quality(x, req.fs)
+    if not quality["ok"]:
+        return {"rejected": True, "issues": quality["issues"], "model_version": MODEL_VERSION}
+    return _result(x, req.fs, req.rpm, baseline)
 
 
 @app.post("/demo/baseline", dependencies=[Depends(require_key)])
