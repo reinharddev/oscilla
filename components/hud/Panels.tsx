@@ -5,7 +5,7 @@ import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
 import { AgentPanel } from "./AgentPanel";
 import { Benchmark } from "./Benchmark";
-import { MachinePanel, MaintenanceTable } from "./MachinePanel";
+import { MachinePanel } from "./MachinePanel";
 import { Bar, Section } from "./ui";
 
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
@@ -20,17 +20,17 @@ function Stat({ label, value, sub }: { label: string; value: string; sub: string
 
 export function Kpis() {
   const t = useT();
-  const { ordersToday, shipped, series, fleet, zones, entities } = useStore();
+  const { ordersToday, shipped, series, fleet, zones, machines } = useStore();
   const per = Math.round(series[series.length - 1] * 2.4);
-  const active = Object.values(fleet).filter((f) => f.status === "active").length;
+  const active = machines.filter((m) => fleet[m.id]?.status === "active").length;
   const fill = Math.round(Object.values(zones).reduce((a, b) => a + b, 0) / Math.max(1, Object.keys(zones).length));
   return (
-    <Section title={t("kpi.title")} aside={t("kpi.live")}>
+    <Section title={t("kpi.title")} aside={t("kpi.simulated")}>
       <div className="grid grid-cols-2 gap-x-4 gap-y-5">
         <Stat label={t("kpi.orders")} value={ordersToday.toLocaleString("en-US")} sub={t("kpi.vsYesterday")} />
         <Stat label={t("kpi.shipped")} value={shipped.toLocaleString("en-US")} sub={t("kpi.fulfilment", { pct: Math.round((shipped / ordersToday) * 100) })} />
         <Stat label={t("kpi.throughput")} value={t("kpi.perHour", { n: per })} sub={t("kpi.parcelsPerHour")} />
-        <Stat label={t("kpi.fleetActive")} value={`${active}/${entities.length}`} sub={t("kpi.capacity", { pct: fill })} />
+        <Stat label={t("kpi.fleetActive")} value={`${active}/${machines.length}`} sub={t("kpi.capacity", { pct: fill })} />
       </div>
     </Section>
   );
@@ -92,36 +92,6 @@ export function Orders() {
   );
 }
 
-export function Fleet() {
-  const t = useT();
-  const { fleet, select, selected, entities } = useStore();
-  return (
-    <Section title={t("fleet.title")} aside={t("fleet.hint")}>
-      <div className="grid grid-cols-[1fr_72px_44px] px-2 pb-1 text-xs text-ink/45">
-        <span>{t("fleet.unit")}</span><span>{t("fleet.status")}</span><span className="text-right">{t("fleet.battery")}</span>
-      </div>
-      <ul className="divide-y divide-rule border-y border-rule">
-        {entities.map((f) => {
-          const st = fleet[f.id];
-          if (!st) return null;
-          return (
-            <li key={f.id}>
-              <button
-                onClick={() => select(f)}
-                className={`grid w-full grid-cols-[1fr_72px_44px] items-center px-2 py-1.5 text-left text-xs transition-colors duration-150 ${selected?.id === f.id ? "bg-ink/10" : "hover:bg-ink/5"}`}
-              >
-                <span className="truncate">{f.label}</span>
-                <span className={st.status === "charging" ? "text-warn" : "text-ink/60"}>{st.status === "charging" ? t("fleet.charging") : t("fleet.active")}</span>
-                <span className={`text-right ${st.battery < 25 ? "text-warn" : "text-ink/60"}`}>{Math.round(st.battery)}%</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </Section>
-  );
-}
-
 const KIND_CLASS = { info: "", success: "", warn: "text-warn" } as const;
 
 export function Activity() {
@@ -156,21 +126,20 @@ export function OverviewPanels() {
 
 export function LeftColumn() {
   return (
-    <aside className="scroll-thin hidden w-[300px] shrink-0 overflow-y-auto border-r border-rule bg-surface lg:block">
+    <aside className="scroll-thin w-full overflow-y-auto border-r border-rule bg-surface lg:w-[280px] lg:shrink-0">
       <OverviewPanels />
     </aside>
   );
 }
 
-export function RightColumn() {
+/** Detail column. `only` narrows it on small screens where tabs split the content. */
+export function RightColumn({ only }: { only?: "machine" | "agent" }) {
   return (
-    <aside className="scroll-thin hidden w-[300px] shrink-0 overflow-y-auto border-l border-rule bg-surface lg:block">
-      <AgentPanel />
-      <MachinePanel />
-      <MaintenanceTable />
-      <Fleet />
-      <Benchmark />
-      <Activity />
-    </aside>
+    <>
+      {only !== "agent" && <MachinePanel />}
+      {only !== "machine" && <AgentPanel />}
+      {!only && <Benchmark />}
+      {!only && <Activity />}
+    </>
   );
 }

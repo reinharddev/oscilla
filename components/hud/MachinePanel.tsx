@@ -171,34 +171,3 @@ export function MachinePanel() {
     </>
   );
 }
-
-export function MaintenanceTable() {
-  const t = useT();
-  const lang = useLang();
-  const { health, schedules, select, selected, machines } = useStore();
-  return (
-    <Section title={t("maint.title")} aside={t("maint.hint")}>
-      <div className="grid grid-cols-[1fr_44px_84px] px-2 pb-1 text-xs text-ink/45"><span>{t("maint.machine")}</span><span className="text-right">{t("maint.score")}</span><span className="text-right">{t("maint.service")}</span></div>
-      <ul className="divide-y divide-rule border-y border-rule">
-        {machines.map((m) => {
-          const h = health[m.id], sch = schedules[m.id];
-          if (!h || !sch) return null;
-          const st = sch.inProgress ? "maintenance" : statusOf(h);
-          const overdue = sch.due !== null && sch.due < Date.now() && !sch.inProgress;
-          return (
-            <li key={m.id}>
-              <button onClick={() => select(m)} className={`grid w-full grid-cols-[1fr_44px_84px] items-center px-2 py-1.5 text-left text-xs transition-colors duration-150 ${selected?.id === m.id ? "bg-ink/10" : "hover:bg-ink/5"}`}>
-                <span className="truncate">{m.label}</span>
-                <span className={`text-right font-semibold ${STATUS_CLASS[st]}`}>{sch.inProgress ? "MT" : scoreOf(h)}</span>
-                <span className={`text-right ${overdue ? "text-bad" : "text-ink/60"}`}>
-                  {sch.inProgress ? t("maint.running") : sch.due !== null ? (overdue ? t("maint.late") : fmtDate(sch.due, lang, { day: "numeric", month: "short" })) : sch.lastDone ? ago(sch.lastDone, t) : "-"}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      <p className="mt-2 text-xs text-ink/45">{t("maint.legend")}</p>
-    </Section>
-  );
-}

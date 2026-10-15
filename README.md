@@ -9,7 +9,7 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 
 ## What it does
 
-- **Fleet view.** An isometric 3D warehouse (one layout per site) next to operational panels: KPIs, zones, orders, fleet status, maintenance schedule.
+- **Machine health view.** Every monitored machine in one table, worst first: status, score, estimated remaining life and next service. Selecting a machine shows the evidence, a per-machine journal and the Copilot. The KPI, zone and order panels are simulated filler and are labelled as such.
 - **Machine health.** Per machine: health score, remaining-life estimate, the vibration features that moved away from baseline, and a per-machine service journal.
 - **Maintenance Copilot.** Explains the likely cause from signal evidence, manual excerpts and the journal. It cites its sources, states a qualitative confidence, and always asks for human review when a machine is critical.
 - **Question-answer agent.** Answers fleet questions by calling typed tools (health, schedule, journal, work orders). It can only propose changes; a person confirms them.
@@ -28,7 +28,7 @@ Browser ── Next.js 16 (app + API routes) ──┬── Supabase (Postgres 
 
 | Part | Where | Notes |
 |---|---|---|
-| Web app | `app/`, `components/`, `lib/` | Next.js 16, React 19, React Three Fiber, Tailwind v4, zustand |
+| Web app | `app/`, `components/`, `lib/` | Next.js 16, React 19, Tailwind v4, zustand |
 | Health service | `health-service/` | Python 3.12, NumPy/SciPy, FastAPI. Stateless; optional `X-API-Key` |
 | Copilot | `lib/copilot/`, `app/api/copilot/` | BM25 retrieval over `knowledge/manuals.json`, prompt, guardrails, template fallback |
 | Agent | `lib/agent/`, `app/api/agent/` | Tool registry (zod schemas), tool-calling loop, rule-based planner when no LLM |
@@ -149,5 +149,4 @@ How to read this honestly:
 - Manuals are synthetic samples written for this demo.
 - Health snapshots are written only while someone has the app open and visible. A production deployment needs a proper ingest service.
 - Baselines in the health service are held in memory.
-- The 3D scene uses primitive shapes only; there is no low-graphics mode yet.
 - No CMMS or ERP integration, no real sensor ingest API yet.

@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Oscilla",
-  description: "Gamified isometric warehouse dashboard built with Next.js, React Three Fiber and Tailwind CSS.",
+  description: "Predictive maintenance for warehouse fleets: machine health from vibration, a cited Maintenance Copilot, and work orders.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

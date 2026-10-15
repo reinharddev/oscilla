@@ -51,7 +51,6 @@ interface State {
   speed: number;
   theme: Theme;
   locale: Lang;
-  layers: { paths: boolean; labels: boolean; zones: boolean };
   selected: Selected | null;
   ordersToday: number; shipped: number;
   series: number[];
@@ -94,10 +93,8 @@ interface State {
   completeMaintenance: (id: string, note: string, feedback?: "correct" | "incorrect") => Promise<void>;
   addNote: (id: string, text: string) => Promise<void>;
 
-  setSpeed: (s: number) => void;
   setTheme: (t: Theme) => void;
   setLocale: (l: Lang) => void;
-  toggleLayer: (k: "paths" | "labels" | "zones") => void;
   select: (s: Selected | null) => void;
   log: (kind: LogEvent["kind"], key: Key, params?: MsgParams) => void;
   deliver: () => void;
@@ -133,7 +130,6 @@ export const useStore = create<State>((set, get) => ({
   speed: 1,
   theme: "day",
   locale: "en",
-  layers: { paths: false, labels: true, zones: true },
   selected: null,
   ordersToday: 1284, shipped: 1127,
   series: [34, 41, 38, 52, 47, 58, 49, 61, 55, 63, 59, 70, 64, 72, 66, 75, 69, 78, 71, 80, 74, 69, 77, 83, 79, 86, 81, 88, 84, 90],
@@ -330,7 +326,6 @@ export const useStore = create<State>((set, get) => ({
     await addEntry(get, set, id, "note", text.trim());
   },
 
-  setSpeed: (speed) => set({ speed }),
   setTheme: (theme) => {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("wt-theme", theme); } catch {}
@@ -341,7 +336,6 @@ export const useStore = create<State>((set, get) => ({
     document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
     set({ locale });
   },
-  toggleLayer: (k) => set((s) => ({ layers: { ...s.layers, [k]: !s.layers[k] } })),
   select: (selected) => set({ selected }),
 
   log: (kind, key, params) => set((s) => ({ events: [{ id: eventId++, at: Date.now(), kind, key, params }, ...s.events].slice(0, 30) })),

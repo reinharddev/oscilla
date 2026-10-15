@@ -1,30 +1,23 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { makeT } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/use-t";
 import { useStore, type HydrateInput } from "@/lib/store";
 import { TopBar } from "./hud/TopBar";
-import { Activity, Fleet, LeftColumn, OverviewPanels, RightColumn } from "./hud/Panels";
+import { Activity, LeftColumn, OverviewPanels, RightColumn } from "./hud/Panels";
+import { FleetHealth } from "./hud/FleetHealth";
 import { AgentPanel } from "./hud/AgentPanel";
-import { MachinePanel, MaintenanceTable } from "./hud/MachinePanel";
+import { MachinePanel } from "./hud/MachinePanel";
 import { Benchmark } from "./hud/Benchmark";
-import { SelectedPanel } from "./hud/SelectedPanel";
 import { DemoPanel } from "./hud/DemoPanel";
-
-const WarehouseScene = dynamic(() => import("./scene/WarehouseScene"), {
-  ssr: false,
-  loading: () => <div className="absolute inset-0 grid place-items-center text-sm text-ink/50">Loading warehouse…</div>,
-});
 
 export default function Workspace({ initial }: { initial: HydrateInput }) {
   const t = useT();
-  const [focus, setFocus] = useState(false);
   const ready = useStore((s) => s.layout !== null && s.auth?.warehouseId === initial.auth.warehouseId);
-  const [tab, setTab] = useState<"overview" | "machine" | "agent" | "fleet" | null>(null);
+  const [tab, setTab] = useState<"overview" | "machine" | "agent" | "fleet">("fleet");
   const requestTab = useStore((s) => s.requestTab);
-  useEffect(() => { if (requestTab) setTab(requestTab.tab); }, [requestTab]);
+  useEffect(() => { if (requestTab) setTab(requestTab.tab ?? "fleet"); }, [requestTab]);
 
   useEffect(() => {
     const id = setInterval(() => useStore.getState().tick(), 1000);
@@ -73,43 +66,34 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
     return <main className="grid h-dvh w-screen place-items-center bg-canvas text-sm text-ink/50">{makeT(initial.locale)("ws.loading")}</main>;
   }
 
+  const tabs = [["overview", t("tab.overview")], ["fleet", t("tab.fleet")], ["machine", t("tab.machine")], ["agent", t("tab.ask")]] as const;
+
   return (
     <main className="flex h-dvh w-screen flex-col bg-canvas">
-      <TopBar focus={focus} onFocus={() => setFocus((f) => !f)} />
+      <TopBar />
       <div className="flex min-h-0 flex-1">
-        {!focus && <LeftColumn />}
-        <div className="relative min-w-0 flex-1">
-          <div className="absolute inset-0"><WarehouseScene /></div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
-            <SelectedPanel />
-          </div>
-          <DemoPanel />
-          <p className="pointer-events-none absolute right-4 top-3 hidden text-xs text-ink/45 md:block">
-            {t("ws.hint")}
-          </p>
-          {tab && (
-            <div className="scroll-thin absolute inset-x-0 bottom-0 top-[38%] overflow-y-auto border-t border-rule bg-surface lg:hidden">
-              {tab === "overview" && <OverviewPanels />}
-              {tab === "machine" && <><MachinePanel /><MaintenanceTable /></>}
-              {tab === "agent" && <AgentPanel />}
-              {tab === "fleet" && <><Fleet /><Benchmark /><Activity /></>}
-            </div>
-          )}
+        <div className={`${tab === "overview" ? "block" : "hidden"} min-h-0 w-full overflow-y-auto bg-surface lg:block lg:w-auto`}>
+          <LeftColumn />
         </div>
-        {!focus && <RightColumn />}
+        <div className={`${tab === "fleet" ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 flex-col lg:flex`}>
+          <DemoPanel />
+          <FleetHealth />
+        </div>
+        <div className={`${tab === "machine" || tab === "agent" ? "block" : "hidden"} scroll-thin min-h-0 w-full overflow-y-auto border-l border-rule bg-surface lg:block lg:w-[380px] lg:shrink-0`}>
+          <RightColumn only={tab === "agent" ? "agent" : tab === "machine" ? "machine" : undefined} />
+        </div>
       </div>
-      <nav aria-label={t("tab.panel")} className="grid h-12 shrink-0 grid-cols-5 border-t border-rule bg-surface text-xs lg:hidden">
-        {([["overview", t("tab.overview")], ["machine", t("tab.machine")], ["agent", t("tab.ask")], ["fleet", t("tab.fleet")]] as const).map(([k, label]) => (
+      <nav aria-label={t("tab.panel")} className="grid h-12 shrink-0 grid-cols-4 border-t border-rule bg-surface text-xs lg:hidden">
+        {tabs.map(([k, label]) => (
           <button
             key={k}
-            onClick={() => setTab((cur) => (cur === k ? null : k))}
+            onClick={() => setTab(k)}
             aria-pressed={tab === k}
             className={`border-l border-rule first:border-l-0 transition-colors duration-150 ${tab === k ? "bg-ink/10 font-semibold" : "text-ink/60 hover:bg-ink/5"}`}
           >
             {label}
           </button>
         ))}
-        <button onClick={() => setTab(null)} className="border-l border-rule text-ink/60 transition-colors duration-150 hover:bg-ink/5">{t("tab.scene")}</button>
       </nav>
     </main>
   );

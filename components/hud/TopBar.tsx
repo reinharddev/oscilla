@@ -2,27 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Moon, Pause, Sun } from "lucide-react";
+import { LogOut, Moon, Sun } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { dateLocale, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
 import { LangSwitch } from "./LangSwitch";
 
-function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={on}
-      className={`h-7 rounded-ui border px-2.5 text-xs transition-colors duration-150 ${on ? "border-ink/40 bg-ink/10 text-ink" : "border-rule text-ink/60 hover:bg-ink/5"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
-export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void }) {
-  const { demo, speed, layers, theme, auth, warehouses, setSpeed, setTheme, toggleLayer } = useStore();
+export function TopBar() {
+  const { demo, theme, auth, warehouses, setTheme } = useStore();
   const router = useRouter();
   const t = useT();
   const lang = useLang();
@@ -55,25 +43,7 @@ export function TopBar({ focus, onFocus }: { focus: boolean; onFocus: () => void
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <div role="group" aria-label={t("top.speedGroup")} className="flex overflow-hidden rounded-ui border border-rule">
-          {[0, 1, 2, 4].map((s) => (
-            <button
-              key={s}
-              onClick={() => setSpeed(s)}
-              aria-label={s === 0 ? t("top.pause") : `${s}x`}
-              className={`grid h-[26px] min-w-8 place-items-center border-l border-rule px-2 text-xs first:border-l-0 transition-colors duration-150 ${speed === s ? "bg-ink/10 font-semibold text-ink" : "text-ink/60 hover:bg-ink/5"}`}
-            >
-              {s === 0 ? <Pause size={12} fill="currentColor" /> : `${s}×`}
-            </button>
-          ))}
-        </div>
         <button onClick={() => { const d = useStore.getState().demo; if (d.open) useStore.getState().demoReset(); else useStore.getState().demoPrepare(); }} aria-pressed={demo.open} className={`h-7 rounded-ui border px-2.5 text-xs font-medium transition-colors duration-150 ${demo.open ? "border-accent bg-accent text-canvas" : "border-accent text-accent hover:bg-accent/10"}`}>{t("top.demo")}</button>
-        <div className="hidden items-center gap-2 lg:flex">
-          <Toggle on={layers.paths} onClick={() => toggleLayer("paths")}>{t("top.paths")}</Toggle>
-          <Toggle on={layers.zones} onClick={() => toggleLayer("zones")}>{t("top.zones")}</Toggle>
-          <Toggle on={layers.labels} onClick={() => toggleLayer("labels")}>{t("top.labels")}</Toggle>
-          <Toggle on={focus} onClick={onFocus}>{t("top.hidePanels")}</Toggle>
-        </div>
         <button
           onClick={() => setTheme(theme === "day" ? "night" : "day")}
           aria-label={theme === "day" ? t("top.toNight") : t("top.toDay")}

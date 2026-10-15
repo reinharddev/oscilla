@@ -121,7 +121,7 @@ export function DemoPanel() {
   const key = (k: string) => `demo.s${step}.${k}` as Key;
 
   return (
-    <aside aria-label={t("demo.title")} className="pointer-events-auto absolute left-3 top-3 z-10 w-[min(360px,calc(100%-24px))] border border-rule bg-surface shadow-sm">
+    <aside aria-label={t("demo.title")} className="m-3 shrink-0 border border-rule bg-surface">
       <div className="flex items-center justify-between border-b border-rule px-3 py-2">
         <div className="text-xs font-semibold">{t("demo.title")} <span className="font-normal text-ink/55">· {t("demo.step", { n: Math.min(step, TOTAL), total: TOTAL })}</span></div>
         <button onClick={() => useStore.getState().demoReset()} aria-label={t("demo.exit")} title={t("demo.exit")} className="grid h-6 w-6 place-items-center rounded-ui text-ink/60 hover:bg-ink/5"><X size={14} /></button>
