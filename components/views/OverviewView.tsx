@@ -9,6 +9,7 @@ import { Overview, WorkOrders } from "@/components/hud/Panels";
 import { scoreOf, statusKey } from "@/lib/health";
 import { useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
+import { ImpactCard } from "./ImpactCard";
 import { Page, Panel, useOpenMachine } from "./shared";
 
 /** Warehouse overview for managers, admins and viewers. Viewers get the same facts without actions. */
@@ -27,6 +28,7 @@ export function OverviewView() {
         <Alert><Info /><AlertDescription>{t("ov2.readOnly")}</AlertDescription></Alert>
       )}
       <Overview />
+      <ImpactCard />
       <Panel title={t("ov2.attention")} description={String(attention.length)}>
         {attention.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("ov2.none")}</p>

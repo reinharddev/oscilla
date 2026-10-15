@@ -36,7 +36,7 @@ export async function loadBootstrap(supabase: SupabaseClient, user: AuthUser, la
   const [assets, journal, orders] = await Promise.all([
     supabase.from("assets").select("id, name, serial_number, type, org_id, warehouse_id").eq("warehouse_id", warehouse.id).order("name"),
     supabase.from("journal_entries").select("id, asset_id, author_id, kind, body, created_at").eq("warehouse_id", warehouse.id).order("created_at", { ascending: false }).limit(500),
-    supabase.from("work_orders").select("id, asset_id, status, summary, due_at, started_at, completed_at, created_at, diagnosis_feedback, assigned_to").eq("warehouse_id", warehouse.id),
+    supabase.from("work_orders").select("id, asset_id, status, summary, due_at, started_at, completed_at, created_at, diagnosis_feedback, assigned_to, ai_diagnosis").eq("warehouse_id", warehouse.id),
   ]);
   await fresh;
   const [health, extra] = await Promise.all([
@@ -53,7 +53,7 @@ export async function loadBootstrap(supabase: SupabaseClient, user: AuthUser, la
       warehouses: all.map((x) => ({ id: x.id as string, name: x.name as string })),
       assets: (assets.data ?? []) as HydrateInput["assets"],
       journal: (journal.data ?? []) as HydrateInput["journal"],
-      workOrders: (orders.data ?? []) as HydrateInput["workOrders"],
+      workOrders: (orders.data ?? []).map(({ ai_diagnosis, ...w }) => ({ ...w, ai: ai_diagnosis != null })) as HydrateInput["workOrders"],
       health,
       ...extra,
     },

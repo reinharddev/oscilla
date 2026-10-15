@@ -21,6 +21,8 @@ export interface WorkOrder {
   summary?: string; due_at: string | null; started_at?: string | null; completed_at: string | null; created_at?: string;
   diagnosis_feedback?: "correct" | "incorrect" | null;
   assigned_to?: string | null;
+  /** True when an AI diagnosis (Copilot or agent) was attached when the order was raised. */
+  ai?: boolean;
 }
 export interface Person { user_id: string; full_name: string; role: Role }
 export interface Member { id: string; user_id: string; role: Role; warehouse_id: string | null; full_name: string }
@@ -320,7 +322,7 @@ export const useStore = create<State>((set, get) => ({
       .single();
     if (error) { get().log("warn", "log.scheduleFail", { msg: error.message }); return; }
     set((st) => {
-      const workOrders = [...st.workOrders, { id: data.id, asset_id: id, status: "scheduled" as const, summary, due_at: new Date(due).toISOString(), completed_at: null, created_at: data.created_at }];
+      const workOrders = [...st.workOrders, { id: data.id, asset_id: id, status: "scheduled" as const, summary, due_at: new Date(due).toISOString(), completed_at: null, created_at: data.created_at, ai: Boolean(extra?.aiDiagnosis) }];
       return { workOrders, schedules: { ...st.schedules, [id]: { ...st.schedules[id], due, workOrderId: data.id } } };
     });
     await addEntry(get, set, id, "schedule", translate(get().locale, "journal.scheduled", { date: fmtDateTime(due, get().locale) }));
