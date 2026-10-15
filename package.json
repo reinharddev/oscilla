@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "seed:orders": "node --env-file=.env.local scripts/seed-workorders.mjs",
     "seed:sim": "node --env-file=.env.local scripts/seed-sim.mjs",
     "test:db": "node --test supabase/tests/rls.test.mjs",
     "test:health": "cd health-service && .venv/bin/python -m pytest -q",

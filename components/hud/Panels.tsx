@@ -3,6 +3,7 @@
 import { fmtDate, fmtTime, renderMsg, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { scoreOf } from "@/lib/health";
+import { canSeeBenchmark } from "@/lib/roles";
 import { useStore } from "@/lib/store";
 import { AgentPanel } from "./AgentPanel";
 import { Benchmark } from "./Benchmark";
@@ -122,30 +123,14 @@ export function Activity() {
   );
 }
 
-export function OverviewPanels() {
-  return (
-    <>
-      <Overview />
-      <WorkOrders />
-    </>
-  );
-}
-
-export function LeftColumn() {
-  return (
-    <aside className="scroll-thin w-full overflow-y-auto border-r border-rule bg-surface lg:w-[280px] lg:shrink-0">
-      <OverviewPanels />
-    </aside>
-  );
-}
-
-/** Detail column. `only` narrows it on small screens where tabs split the content. */
+/** Detail column of the Machines screen. `only` narrows it on small screens where tabs split the content. */
 export function RightColumn({ only }: { only?: "machine" | "agent" }) {
+  const role = useStore((s) => s.auth?.role);
   return (
     <>
       {only !== "agent" && <MachinePanel />}
       {only !== "machine" && <AgentPanel />}
-      {!only && <Benchmark />}
+      {!only && canSeeBenchmark(role) && <Benchmark />}
       {!only && <Activity />}
     </>
   );

@@ -6,10 +6,11 @@ import type { Health, HealthStatus, Machine, MachineType } from "./health";
 import type { AssetHealth } from "./server/fleet-health";
 import { statusKey } from "./health";
 import { fmtDateTime, LOCALE_COOKIE, translate, type Key, type Lang, type MsgParams } from "./i18n";
+import { DEFAULT_VIEW, type Role, type ViewId } from "./roles";
 
 export interface Selected { id: string; type: MachineType; label: string }
 export interface LogEvent { id: number; at: number; kind: "info" | "success" | "warn"; key: Key; params?: MsgParams }
-export type Role = "admin" | "manager" | "technician" | "viewer";
+export type { Role } from "./roles";
 export interface AuthInfo { userId: string; email: string; name: string; role: Role; orgName: string; warehouseName: string; warehouseId: string }
 export interface Schedule { due: number | null; lastDone: number | null; inProgress: boolean; workOrderId?: string }
 export interface JournalEntry { id: string; ts: number; kind: "note" | "alert" | "schedule" | "start" | "done"; text: string; author?: string; key?: Key; params?: MsgParams }
@@ -17,7 +18,13 @@ export interface WorkOrder {
   id: string; asset_id: string; status: "scheduled" | "in_progress" | "done" | "cancelled";
   summary?: string; due_at: string | null; started_at?: string | null; completed_at: string | null; created_at?: string;
   diagnosis_feedback?: "correct" | "incorrect" | null;
+  assigned_to?: string | null;
 }
+export interface Person { user_id: string; full_name: string; role: Role }
+export interface Member { id: string; user_id: string; role: Role; warehouse_id: string | null; full_name: string }
+export interface AuditRow { id: number; created_at: string; actor_id: string | null; action: string; entity: string; entity_id: string | null; warehouse_id: string | null; details: Record<string, unknown> }
+export interface BaselineRow { asset_id: string; learned_at: string; n_windows: number | null; model_version: string }
+export interface OrgWarehouse { id: string; name: string; machines: number; critical: number; attention: number; healthy: number; openOrders: number; overdue: number; avgScore: number | null; lastReadingAt: string | null }
 export interface DemoState {
   open: boolean;
   active: boolean;
@@ -39,6 +46,12 @@ export interface HydrateInput {
   journal: { id: string; asset_id: string; author_id: string; kind: JournalEntry["kind"]; body: string; created_at: string }[];
   workOrders: WorkOrder[];
   health: AssetHealth[];
+  /** Filled according to the role: people to assign, members, audit trail, baselines, org summary. */
+  people: Person[];
+  members: Member[];
+  audit: AuditRow[];
+  baselines: BaselineRow[];
+  org: OrgWarehouse[];
 }
 
 export const canWrite = (a: AuthInfo | null) => a?.role === "admin" || a?.role === "manager" || a?.role === "technician";
@@ -81,6 +94,15 @@ interface State {
   warehouses: { id: string; name: string }[];
   assetMeta: Record<string, { org_id: string; warehouse_id: string }>;
   names: Record<string, string>;
+  people: Person[];
+  members: Member[];
+  audit: AuditRow[];
+  baselines: BaselineRow[];
+  org: OrgWarehouse[];
+  view: ViewId;
+  setView: (v: ViewId) => void;
+  assignWorkOrder: (workOrderId: string, userId: string | null) => Promise<void>;
+  setMemberRole: (membershipId: string, role: Role) => Promise<void>;
 
   /** State of the data feed: "ok" after a successful read, "error" after a failed one. */
   feed: "idle" | "ok" | "error";
@@ -153,6 +175,8 @@ export const useStore = create<State>((set, get) => ({
   warehouses: [],
   assetMeta: {},
   names: {},
+  people: [], members: [], audit: [], baselines: [], org: [],
+  view: "machines",
   feed: "idle",
   feedAt: null,
   pollNonce: 0,
@@ -174,10 +198,26 @@ export const useStore = create<State>((set, get) => ({
     for (const h of init.health) health[h.assetId] = toHealth(h);
     set({
       locale: init.locale, auth: init.auth, warehouses: init.warehouses, machines, assetMeta, journal, names: init.names,
+      people: init.people, members: init.members, audit: init.audit, baselines: init.baselines, org: init.org,
+      view: DEFAULT_VIEW[init.auth.role],
       workOrders: init.workOrders, schedules: schedulesFrom(init.workOrders, init.assets.map((a) => a.id)),
       health, feed: init.health.length ? "ok" : "idle", feedAt: init.health.length ? Date.now() : null,
       selected: null, events: [],
     });
+  },
+
+  setView: (view) => set({ view }),
+
+  assignWorkOrder: async (workOrderId, userId) => {
+    const { error } = await createClient().from("work_orders").update({ assigned_to: userId }).eq("id", workOrderId);
+    if (error) { get().log("warn", "log.assignFail", { msg: error.message }); return; }
+    set((st) => ({ workOrders: st.workOrders.map((w) => (w.id === workOrderId ? { ...w, assigned_to: userId } : w)) }));
+  },
+
+  setMemberRole: async (membershipId, role) => {
+    const { error } = await createClient().from("memberships").update({ role }).eq("id", membershipId);
+    if (error) { get().log("warn", "log.roleFail", { msg: error.message }); return; }
+    set((st) => ({ members: st.members.map((m) => (m.id === membershipId ? { ...m, role } : m)) }));
   },
 
   requestPoll: () => set((s) => ({ pollNonce: s.pollNonce + 1 })),
@@ -207,6 +247,7 @@ export const useStore = create<State>((set, get) => ({
     const target = [...s.machines].sort((a, b) => (s.health[a.id]?.score ?? 100) - (s.health[b.id]?.score ?? 100))[0];
     if (!target) return;
     set({
+      view: "machines",
       demo: { open: true, active: true, step: 1, targetId: target.id, scores: {}, skipped: false, restore: undefined },
       selected: { id: target.id, type: target.type, label: target.label },
       copilotReplies: {}, copilotRequest: null,

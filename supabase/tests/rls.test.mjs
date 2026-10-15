@@ -231,6 +231,31 @@ test("finishing a work order resets the simulated damage (the machine was repair
   assert.ok(Number(after.rate_per_day) <= 0.004);
 });
 
+test("assignment: technicians take tasks for themselves only, leads assign anyone in the warehouse", async () => {
+  const { rows: [wo] } = await as(U.managerA,
+    "insert into public.work_orders (asset_id, org_id, warehouse_id, summary) select id, org_id, warehouse_id, 'check brakes' from public.assets where id = $1 returning id",
+    [assetA]);
+  // A technician cannot hand a task to a colleague, but can take it.
+  await rejects(as(U.techA, "update public.work_orders set assigned_to = $1 where id = $2", [U.managerA, wo.id]), /assignment_not_allowed/);
+  await as(U.techA, "update public.work_orders set assigned_to = $1 where id = $2", [U.techA, wo.id]);
+  // ... and give it back, but not release someone else's.
+  await as(U.techA, "update public.work_orders set assigned_to = null where id = $1", [wo.id]);
+  // A manager can assign a technician of this warehouse, but not someone from another warehouse or org.
+  await as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.techA, wo.id]);
+  await rejects(as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.techB, wo.id]), /assignee_not_in_warehouse/);
+  await rejects(as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.outsider, wo.id]), /assignee_not_in_warehouse/);
+});
+
+test("people list: managers and admins see who can be assigned; technicians and viewers do not", async () => {
+  const names = async (u) => (await as(u, "select user_id from public.warehouse_people($1)", [WH_A])).rows.map((r) => r.user_id);
+  const lead = await names(U.managerA);
+  assert.ok(lead.includes(U.techA) && lead.includes(U.managerA) && lead.includes(U.admin));
+  assert.ok(!lead.includes(U.techB), "a technician of another warehouse is not assignable here");
+  assert.deepEqual(await names(U.techA), []);
+  assert.deepEqual(await names(U.viewerA), []);
+  assert.deepEqual(await names(U.outsider), []);
+});
+
 test("integrity: a child row cannot point at a warehouse from another organization", async () => {
   await assert.rejects(
     db.query("insert into public.assets (org_id, warehouse_id, serial_number, name, type) values ($1, $2, 'BAD-1', 'x', 'agv')", [ORG, OTHER_WH]),

@@ -6,7 +6,7 @@ import { LogOut, Moon, Sun } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { dateLocale, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
-import { useStore } from "@/lib/store";
+import { canWrite, useStore } from "@/lib/store";
 import { LangSwitch } from "./LangSwitch";
 
 export function TopBar() {
@@ -43,7 +43,7 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <button onClick={() => { const d = useStore.getState().demo; if (d.open) useStore.getState().demoReset(); else useStore.getState().demoPrepare(); }} aria-pressed={demo.open} className={`h-7 rounded-ui border px-2.5 text-xs font-medium transition-colors duration-150 ${demo.open ? "border-accent bg-accent text-canvas" : "border-accent text-accent hover:bg-accent/10"}`}>{t("top.demo")}</button>
+        {canWrite(auth) && <button onClick={() => { const d = useStore.getState().demo; if (d.open) useStore.getState().demoReset(); else useStore.getState().demoPrepare(); }} aria-pressed={demo.open} className={`h-7 rounded-ui border px-2.5 text-xs font-medium transition-colors duration-150 ${demo.open ? "border-accent bg-accent text-canvas" : "border-accent text-accent hover:bg-accent/10"}`}>{t("top.demo")}</button>}
         <button
           onClick={() => setTheme(theme === "day" ? "night" : "day")}
           aria-label={theme === "day" ? t("top.toNight") : t("top.toDay")}

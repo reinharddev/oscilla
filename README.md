@@ -14,7 +14,12 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 - **Maintenance Copilot.** Explains the likely cause from signal evidence, manual excerpts and the journal. It cites its sources, states a qualitative confidence, and always asks for human review when a machine is critical.
 - **Question-answer agent.** Answers fleet questions by calling typed tools (health, schedule, journal, work orders). It can only propose changes; a person confirms them.
 - **Work orders and feedback.** A Copilot recommendation becomes a work order with the AI diagnosis attached; the technician later marks the diagnosis correct or incorrect.
-- **Multiple warehouses, four roles.** `admin`, `manager`, `technician`, `viewer`, enforced in the database (row-level security), not only in the UI.
+- **Four roles, four working screens.** The same database rules apply to everyone; what differs is the job each role sees:
+  - *Technician:* **My tasks** (assigned work, unassigned work to take, machines to watch) and the machine screen.
+  - *Manager:* **Overview**, **Work orders** (assign technicians of the warehouse), **Audit log**, **Data sources**.
+  - *Admin:* all of that plus **Organization** (every warehouse side by side) and **People** (roles).
+  - *Viewer:* **Overview** and machines, read-only, with no action buttons.
+  The database enforces the same boundaries with row-level security. Assignment has its own guard: a technician can only take a task for themselves, a manager can assign anyone who works in that warehouse.
 - **English and Indonesian UI**, switchable at any time.
 - **Guided demo.** The "Demo" button walks one machine from healthy to worn to repaired in seven steps (dummy-sensor mode only).
 

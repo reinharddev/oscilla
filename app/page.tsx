@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Workspace from "@/components/Workspace";
 import NoLayout from "@/components/NoLayout";
 import { freshenSimulated, loadFleetHealth } from "@/lib/server/fleet-health";
+import { loadRoleData } from "@/lib/server/role-data";
 import { getLang } from "@/lib/i18n/server";
 import { makeT } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
@@ -37,12 +38,15 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ w
   const [assets, journal, orders] = await Promise.all([
     supabase.from("assets").select("id, name, serial_number, type, org_id, warehouse_id").eq("warehouse_id", warehouse.id).order("name"),
     supabase.from("journal_entries").select("id, asset_id, author_id, kind, body, created_at").eq("warehouse_id", warehouse.id).order("created_at", { ascending: false }).limit(500),
-    supabase.from("work_orders").select("id, asset_id, status, summary, due_at, started_at, completed_at, created_at, diagnosis_feedback").eq("warehouse_id", warehouse.id),
+    supabase.from("work_orders").select("id, asset_id, status, summary, due_at, started_at, completed_at, created_at, diagnosis_feedback, assigned_to").eq("warehouse_id", warehouse.id),
   ]);
 
   // Dummy-sensor mode: make sure the sensors have reported recently, then read the latest values.
-  await freshenSimulated(supabase, { warehouseId: warehouse.id });
+  // An admin also sees the other warehouses in the organization summary, so refresh those too.
+  await freshenSimulated(supabase, role === "admin" ? {} : { warehouseId: warehouse.id });
   const health = await loadFleetHealth(supabase, (assets.data ?? []).map((a) => a.id as string));
+
+  const extra = await loadRoleData(supabase, role, warehouse, names, all.map((x) => ({ id: x.id, name: x.name })));
 
   const initial: HydrateInput = {
     locale: lang,
@@ -53,6 +57,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ w
     journal: journal.data ?? [],
     workOrders: (orders.data ?? []) as HydrateInput["workOrders"],
     health,
+    ...extra,
   };
   return <Workspace key={warehouse.id} initial={initial} />;
 }
