@@ -1,6 +1,6 @@
 import { extractNumbers, unverifiedNumbers } from "../copilot/guard";
 import { makeT, type Lang } from "../i18n";
-import type { LlmConfig } from "../copilot/llm";
+import { chatRequest, type LlmConfig } from "../copilot/llm";
 import { renderSteps } from "./render";
 import { executeTool, toolSpecs } from "./tools";
 import type { AgentResult, Backend, ChatTurn, Proposal, ToolContext, ToolStep } from "./types";
@@ -28,16 +28,8 @@ const RESULT_CHARS = 6000;
 interface ChatMessage { role: string; content?: string | null; tool_calls?: unknown; tool_call_id?: string }
 interface ToolCall { id: string; function: { name: string; arguments: string } }
 
-async function chat(llm: LlmConfig, messages: ChatMessage[], fetchImpl: typeof fetch) {
-  const res = await fetchImpl(`${llm.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-    method: "POST",
-    headers: { "content-type": "application/json", ...(llm.apiKey ? { authorization: `Bearer ${llm.apiKey}` } : {}) },
-    body: JSON.stringify({ model: llm.model, messages, tools: toolSpecs(), tool_choice: "auto", temperature: 0.1, max_tokens: 600 }),
-    signal: AbortSignal.timeout(llm.timeoutMs ?? 30_000),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`LLM endpoint returned ${res.status}`);
-  return res.json();
+function chat(llm: LlmConfig, messages: ChatMessage[], fetchImpl: typeof fetch) {
+  return chatRequest(llm, { messages, tools: toolSpecs(), tool_choice: "auto", temperature: 0.1, max_tokens: 600 }, fetchImpl);
 }
 
 /** Numbers the answer may contain: those in the question, the history, or any tool result. */
@@ -66,7 +58,8 @@ export async function runAgentLlm(opts: {
   const messages: ChatMessage[] = [{ role: "system", content: systemPrompt(ctx.lang) }];
   if (ctx.selectedAssetId) {
     const r = await backend.resolve(ctx.selectedAssetId);
-    if (r.ok) messages.push({ role: "system", content: `The user currently has this machine open: ${r.asset.name} (${r.asset.serial}). "this machine" means it.` });
+    // One system message only: several providers accept exactly one, first.
+    if (r.ok) messages[0].content += `\n\nThe user currently has this machine open: ${r.asset.name} (${r.asset.serial}). "this machine" means it.`;
   }
   for (const h of (opts.history ?? []).slice(-6)) messages.push({ role: h.role, content: h.content.slice(0, 1500) });
   messages.push({ role: "user", content: question });

@@ -12,6 +12,7 @@
     "dev:health": "cd health-service && .venv/bin/uvicorn app.main:app --port 8100",
     "test": "npm run test:health && npm run test:db && node --test tests/layouts.test.mjs && npm run test:copilot",
     "test:copilot": "vitest run",
+    "check:llm": "node --env-file=.env.local scripts/check-llm.mjs",
     "mock:llm": "node scripts/mock-llm.mjs",
     "test:remote": "node --env-file=.env.local node_modules/vitest/vitest.mjs run lib/agent/remote.test.ts"
   },

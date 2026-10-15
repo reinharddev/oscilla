@@ -21,7 +21,7 @@ function limited(userId: string): boolean {
 function llmConfig() {
   const baseUrl = process.env.LLM_BASE_URL;
   if (!baseUrl) return null;
-  return { baseUrl, apiKey: process.env.LLM_API_KEY, model: process.env.LLM_MODEL ?? "default", timeoutMs: 30_000 };
+  return { baseUrl, apiKey: process.env.LLM_API_KEY, model: process.env.LLM_MODEL ?? "default", timeoutMs: 30_000, reasoningEffort: process.env.LLM_REASONING_EFFORT || undefined };
 }
 
 /**

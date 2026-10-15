@@ -48,6 +48,17 @@ Browser ── Next.js 16 (app + API routes) ──┬── Supabase (Postgres 
 
 The LLM behind the Copilot and the agent is any OpenAI-compatible endpoint. The intended deployment serves an open model with **vLLM on an AMD Instinct MI300X (ROCm)** from the AMD Developer Cloud, and the app is pointed at it with `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL`. The health-service image is a CPU image today; the interface is plain HTTP so a ROCm/PyTorch model can replace the scoring later without touching the web app.
 
+**AMD Token Factory (shared, free during the event).** Token Factory exposes OpenAI-compatible endpoints served on AMD GPUs. Point the app at it with:
+
+```
+LLM_BASE_URL=https://developer.amd.com.cn/radeon/api/v1
+LLM_API_KEY=rc-...                 # team key, kept in .env.local only
+LLM_MODEL=DeepSeek-V4-Flash        # call GET /v1/models for the current list
+LLM_REASONING_EFFORT=              # empty for non-thinking models; low or medium for thinking ones
+```
+
+`npm run check:llm` lists the models, makes one chat call and prints latency and token counts without showing the key. The client sends only fields the gateway accepts, uses a single system message, and retries a short concurrency 429 once. The key is shared by the whole team (about 30 requests per minute and 8 concurrent), so under load the Copilot and agent fall back to their template and rule-based modes instead of failing. Prompts sent contain only synthetic demo data; the endpoint logs prompts for about two days.
+
 Without an LLM endpoint the app still works: the Copilot returns its template answer and the agent uses its rule-based planner. Both are labelled as such in the UI.
 
 ## Run it locally
