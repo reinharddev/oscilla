@@ -503,6 +503,7 @@ export const id: Record<Key, string> = {
   "land.amd.title": "Dibangun untuk berjalan di AMD",
   "land.amd.body": "Copilot dan agen memanggil endpoint yang kompatibel dengan OpenAI, sehingga modelnya bisa berupa model terbuka yang dilayani vLLM di AMD Instinct MI300X (ROCm) atau AMD Token Factory. Penilaian berjalan sebagai layanan kecil tanpa state yang antarmukanya tidak berubah saat modelnya diganti.",
   "land.stack.title": "Dibangun dengan",
+  "land.team.soon": "Tautan menyusul.",
   "land.team.title": "Tim",
   "land.team.body": "Welcome World, untuk AMD Developer Hackathon: ACT III, track Intelligent Industry.",
   "land.footer": "Semua data di demo bersifat fiktif. Akun demo untuk setiap peran ada di halaman masuk.",

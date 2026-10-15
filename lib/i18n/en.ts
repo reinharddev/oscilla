@@ -502,6 +502,7 @@ export const en = {
   "land.amd.title": "Built to run on AMD",
   "land.amd.body": "The Copilot and the agent call an OpenAI-compatible endpoint, so the model can be an open model served with vLLM on an AMD Instinct MI300X (ROCm) or on AMD Token Factory. Scoring runs as a small stateless service whose interface does not change when the model does.",
   "land.stack.title": "Built with",
+  "land.team.soon": "Links coming soon.",
   "land.team.title": "Team",
   "land.team.body": "Welcome World, for the AMD Developer Hackathon: ACT III, track Intelligent Industry.",
   "land.footer": "All data in the demo is fictional. Demo accounts for every role are on the sign-in page.",

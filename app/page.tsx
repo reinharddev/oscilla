@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ExternalLink } from "lucide-react";
+import { LinkIcon } from "@/components/brand-icons";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LangLink } from "@/components/hud/LangSwitch";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
@@ -180,19 +182,31 @@ export default async function Landing() {
             <ul className="mt-6 grid gap-4 sm:grid-cols-3">
               {TEAM_MEMBERS.map((m) => {
                 const links = [m.website, m.linkedin, m.github].filter(Boolean).map((href) => [href.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href]);
+                const initials = m.name.split(" ").map((w) => w[0]).slice(0, 2).join("");
                 return (
                   <li key={m.name}>
-                    <Card size="sm" className="h-full">
-                      <CardHeader><CardTitle>{m.name}</CardTitle></CardHeader>
+                    <Card className="h-full">
+                      <CardHeader>
+                        <div className="flex items-center gap-3">
+                          <Avatar><AvatarFallback>{initials}</AvatarFallback></Avatar>
+                          <CardTitle>{m.name}</CardTitle>
+                        </div>
+                      </CardHeader>
                       <CardContent>
-                        {links.length > 0 && (
-                          <ul className="flex flex-col gap-1 text-sm">
+                        {links.length > 0 ? (
+                          <ul className="flex flex-col gap-2 text-sm">
                             {links.map(([label, href]) => (
-                              <li key={label}>
-                                <a href={href} target="_blank" rel="noopener noreferrer" className="break-all text-muted-foreground underline underline-offset-4 hover:text-foreground">{label}</a>
+                              <li key={href}>
+                                <a href={href} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2 text-muted-foreground transition-colors hover:text-foreground">
+                                  <LinkIcon href={href} className="size-4 shrink-0" />
+                                  <span className="min-w-0 flex-1 break-all underline-offset-4 group-hover:underline">{label}</span>
+                                  <ExternalLink className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                                </a>
                               </li>
                             ))}
                           </ul>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">{t("land.team.soon")}</p>
                         )}
                       </CardContent>
                     </Card>
