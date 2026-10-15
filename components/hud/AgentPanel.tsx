@@ -113,6 +113,11 @@ export function AgentPanel() {
       if (!res.ok) throw new Error(t("agent.errFail"));
       const reply: Reply = await res.json();
       setMsgs((m) => [...m, { role: "assistant", content: reply.answer, reply }]);
+      const r = reply as Reply & { endpoint?: string };
+      useStore.getState().recordLlm({
+        at: Date.now(), source: "agent", mode: r.mode === "llm" ? "llm" : "fallback", model: r.model, endpoint: r.endpoint,
+        latencyMs: r.latencyMs, promptTokens: r.usage?.promptTokens, completionTokens: r.usage?.completionTokens, toolCalls: r.steps?.length,
+      });
     } catch (e) {
       setError((e as Error).message);
     } finally {

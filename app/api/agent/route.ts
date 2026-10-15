@@ -18,6 +18,10 @@ function limited(userId: string): boolean {
   return recent.length > 12;
 }
 
+function endpointHost(): string | undefined {
+  try { return process.env.LLM_BASE_URL ? new URL(process.env.LLM_BASE_URL).host : undefined; } catch { return undefined; }
+}
+
 function llmConfig() {
   const baseUrl = process.env.LLM_BASE_URL;
   if (!baseUrl) return null;
@@ -52,5 +56,5 @@ export async function POST(request: Request) {
   const llm = llmConfig();
   const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm, lang);
   const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected, lang });
-  return NextResponse.json({ ...result, llmConfigured: Boolean(llm) });
+  return NextResponse.json({ ...result, llmConfigured: Boolean(llm), endpoint: endpointHost() });
 }

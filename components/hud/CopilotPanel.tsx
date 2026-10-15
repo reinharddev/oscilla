@@ -8,7 +8,7 @@ import { useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
 import { Section } from "./ui";
 
-type Reply = CopilotResult & { machine: string; llmConfigured: boolean };
+type Reply = CopilotResult & { machine: string; llmConfigured: boolean; endpoint?: string; cached?: boolean };
 
 const toLocalInput = (ts: number) => new Date(ts - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
@@ -28,8 +28,12 @@ export function CopilotPanel({ machineId, canAct }: { machineId: string; canAct:
       const res = await fetch("/api/copilot", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assetId: machineId }) });
       if (res.status === 429) throw new Error(t("copilot.errBusy"));
       if (!res.ok) throw new Error(t("copilot.errFail"));
-      const data = await res.json();
+      const data: Reply = await res.json();
       setReply(data);
+      useStore.getState().recordLlm({
+        at: Date.now(), source: "copilot", mode: data.mode === "llm" ? "llm" : "fallback", model: data.model, endpoint: data.endpoint,
+        latencyMs: data.cached ? 0 : data.latencyMs, promptTokens: data.usage?.promptTokens, completionTokens: data.usage?.completionTokens, cached: data.cached,
+      });
       useStore.setState((s) => ({ copilotReplies: { ...s.copilotReplies, [machineId]: data } }));
     } catch (e) {
       setError((e as Error).message);

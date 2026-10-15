@@ -3,6 +3,7 @@ import type { EntityType } from "./layout";
 import type { WarehouseLayout } from "./layout-schema";
 import type { Theme } from "./theme";
 import { createClient } from "./supabase/client";
+import { MAX_SAMPLES, type AnalyzeSample, type LlmSample } from "./bench";
 import { Evidence, Health, Machine, readings, scoreOf, seedHealth, statusOf, statusKey, faultKey } from "./health";
 import { fmtDateTime, LOCALE_COOKIE, translate, type Key, type Lang, type MsgParams } from "./i18n";
 
@@ -77,6 +78,10 @@ interface State {
   requestCopilot: (id: string) => void;
   copilotReplies: Record<string, unknown>;
   demo: DemoState;
+  bench: { llm: LlmSample[]; analyze: AnalyzeSample[] };
+  recordLlm: (s: LlmSample) => void;
+  recordAnalyze: (s: AnalyzeSample) => void;
+  clearBench: () => void;
   setDemo: (p: Partial<DemoState>) => void;
   demoPrepare: () => void;
   demoReset: () => void;
@@ -153,6 +158,7 @@ export const useStore = create<State>((set, get) => ({
   copilotRequest: null,
   copilotReplies: {},
   demo: { open: false, active: false, step: 0, targetId: null, scores: {}, skipped: false },
+  bench: { llm: [], analyze: [] },
   machines: [],
   entities: [],
   layout: null,
@@ -199,6 +205,9 @@ export const useStore = create<State>((set, get) => ({
   requestPoll: () => set((s) => ({ pollNonce: s.pollNonce + 1 })),
   showTab: (tab) => set((s) => ({ requestTab: { tab, n: (s.requestTab?.n ?? 0) + 1 } })),
   requestCopilot: (id) => set((s) => ({ copilotRequest: { id, n: (s.copilotRequest?.n ?? 0) + 1 } })),
+  recordLlm: (sample) => set((s) => ({ bench: { ...s.bench, llm: [...s.bench.llm, sample].slice(-MAX_SAMPLES) } })),
+  recordAnalyze: (sample) => set((s) => ({ bench: { ...s.bench, analyze: [...s.bench.analyze, sample].slice(-MAX_SAMPLES) } })),
+  clearBench: () => set({ bench: { llm: [], analyze: [] } }),
   setDemo: (p) => set((s) => ({ demo: { ...s.demo, ...p } })),
 
   /** The machine the guided demo follows: the one the layout marks as starting worn, else the first. */

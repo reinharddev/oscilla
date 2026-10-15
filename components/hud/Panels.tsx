@@ -4,6 +4,7 @@ import { fmtTime, renderMsg, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
 import { AgentPanel } from "./AgentPanel";
+import { Benchmark } from "./Benchmark";
 import { MachinePanel, MaintenanceTable } from "./MachinePanel";
 import { Bar, Section } from "./ui";
 
@@ -168,6 +169,7 @@ export function RightColumn() {
       <MachinePanel />
       <MaintenanceTable />
       <Fleet />
+      <Benchmark />
       <Activity />
     </aside>
   );

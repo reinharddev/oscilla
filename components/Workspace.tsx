@@ -9,6 +9,7 @@ import { TopBar } from "./hud/TopBar";
 import { Activity, Fleet, LeftColumn, OverviewPanels, RightColumn } from "./hud/Panels";
 import { AgentPanel } from "./hud/AgentPanel";
 import { MachinePanel, MaintenanceTable } from "./hud/MachinePanel";
+import { Benchmark } from "./hud/Benchmark";
 import { SelectedPanel } from "./hud/SelectedPanel";
 import { DemoPanel } from "./hud/DemoPanel";
 
@@ -48,10 +49,12 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
       busy = true;
       try {
         const items = s.machines.map((m) => ({ assetId: m.id, severity: Math.min(1, Math.max(0, s.health[m.id]?.wear ?? 0)) }));
+        const t0 = performance.now();
         const res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
         if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         useStore.getState().applyAnalyses(data.results, data.serviceUp);
+        useStore.getState().recordAnalyze({ at: Date.now(), ms: Math.round(performance.now() - t0), machines: items.length, serviceUp: Boolean(data.serviceUp) });
       } catch {
         useStore.setState({ analysisStatus: "offline" });
       } finally {
@@ -89,7 +92,7 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
               {tab === "overview" && <OverviewPanels />}
               {tab === "machine" && <><MachinePanel /><MaintenanceTable /></>}
               {tab === "agent" && <AgentPanel />}
-              {tab === "fleet" && <><Fleet /><Activity /></>}
+              {tab === "fleet" && <><Fleet /><Benchmark /><Activity /></>}
             </div>
           )}
         </div>
