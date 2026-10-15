@@ -278,6 +278,7 @@ export const id: Record<Key, string> = {
   "ag.proposeTop": ", penyimpangan terbesar pada {label}",
   "ag.proposeRoutine": "Inspeksi rutin {name}.",
   "ag.askWhich": "Mesin mana yang dimaksud? Sebutkan nama atau kodenya, misalnya \"jadwalkan servis FK-02 besok\".",
+  "ag.adviceWorst": "Tidak ada mesin yang disebut, jadi ini mesin dengan kondisi terburuk: {name}.",
   "ag.overview": "Saya belum yakin maksud pertanyaannya, jadi ini ringkasan mesin yang perlu perhatian. Coba tanyakan misalnya \"mesin mana yang kritis?\" atau \"kenapa FK-02 skornya turun?\".",
   "tool.machines": "{n} mesin",
   "tool.ambiguous": "nama ambigu ({list})",

@@ -55,6 +55,9 @@ function agentReply(res, messages, model) {
   if (!lastTool) {
     const code = /\b(fk-?\d+|[a-z]{1,3}\d)\b/.exec(question)?.[0];
     if (/jadwalkan|buat|schedule|create/.test(question) && code) return call("propose_work_order", { asset: code, summary: english ? "Inspect the machine as the user requested." : "Inspeksi mesin sesuai permintaan pengguna.", due_in_days: 1 });
+    const advice = /rekomendasi|saran|aksi|tindakan|harus|sebaiknya|recommend|advice|what should|next step|action/.test(question);
+    if (advice && code) return call("diagnose_asset", { asset: code });
+    if (advice) return call("list_assets", { status: "problem" });
     if (code) return call("get_asset_health", { asset: code });
     if (/kritis|critical/.test(question)) return call("list_assets", { status: "critical" });
     return call("list_assets", { status: "problem" });
@@ -64,6 +67,13 @@ function agentReply(res, messages, model) {
   const tail = mode === "liar" ? (english ? " This machine will fail in 9 days." : " Mesin ini akan gagal dalam 9 hari.") : "";
   if (data.error === "forbidden") return send({ role: "assistant", content: english ? `Sorry, ${data.message}` : `Maaf, ${data.message}` });
   if (data.error) return send({ role: "assistant", content: english ? "That machine was not found or you do not have access." : "Mesin itu tidak ditemukan atau kamu tidak punya akses." });
+  if (data.recommendations) {
+    const recs = data.recommendations.map((r, i) => `${i + 1}. ${r.action}`).join(" ");
+    return send({ role: "assistant", content: english ? `${data.asset}: ${data.summary} Recommended: ${recs}${tail}` : `${data.asset}: ${data.summary} Rekomendasi: ${recs}${tail}` });
+  }
+  if (data.machines && /rekomendasi|saran|aksi|tindakan|harus|sebaiknya|recommend|advice|what should|next step|action/.test(question) && data.machines.length) {
+    return call("diagnose_asset", { asset: data.machines[0].name });
+  }
   if (data.machines) {
     const list = data.machines.map((m) => `${m.name} (${english ? "score" : "skor"} ${m.score}, ${m.status})`).join("; ");
     return send({ role: "assistant", content: data.machines.length ? (english ? `There are ${data.count} machines: ${list}.${tail}` : `Ada ${data.count} mesin: ${list}.${tail}`) : (english ? "No machines match." : "Tidak ada mesin yang cocok.") });

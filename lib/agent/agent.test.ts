@@ -133,6 +133,18 @@ describe("rules mode (no LLM)", () => {
     expect(r.answer).toContain("Forklift FK-02");
     expect(r.answer).not.toContain("Forklift FK-01");
   });
+  it("gives recommendations for the worst machine when none is named", async () => {
+    for (const q of ["give me recommendation action", "rekomendasi aksi apa yang harus dilakukan?"]) {
+      const r = await ask(q);
+      expect(r.steps.map((s) => s.tool)).toEqual(["diagnose_asset"]);
+      expect(r.answer).toContain("Forklift FK-02");
+      expect(r.answer).toContain("inspeksi bearing");
+    }
+  });
+  it("recommends for the named machine", async () => {
+    const r = await ask("apa tindakan yang sebaiknya untuk FK-02?");
+    expect(r.steps[0]).toMatchObject({ tool: "diagnose_asset" });
+  });
   it("explains one machine with health plus diagnosis", async () => {
     const r = await ask("kenapa FK-02 skornya turun?");
     expect(r.steps.map((s) => s.tool)).toEqual(["get_asset_health", "diagnose_asset"]);

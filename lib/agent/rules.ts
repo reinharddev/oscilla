@@ -103,6 +103,8 @@ export async function runRules(question: string, backend: Backend, ctx: ToolCont
   const wantsManual = /(manual|prosedur|cara|langkah|panduan|ganti|procedure|how to|steps|guide|replace)/.test(q);
   const wantsWhy = /(kenapa|mengapa|penyebab|diagnosis|diagnosa|analisis|ada apa|bagaimana kondisi|kondisi|why|cause|diagnos|what.?s wrong|what is wrong|condition|how is)/.test(q);
 
+  const wantsAdvice = /(rekomendasi|saran|aksi|tindakan|langkah selanjutnya|harus (apa|ngapain|dilakukan|diapakan)|sebaiknya|apa yang (perlu|harus)|recommend|advice|advise|what (should|to do|do i)|next step|action)/.test(q);
+
   if (wantsProposal) {
     if (!ref) {
       intro.push(t("ag.askWhich"));
@@ -118,6 +120,15 @@ export async function runRules(question: string, backend: Backend, ctx: ToolCont
         asset: ref, summary, due_in_days: parseDueDays(q),
         urgency: status === "critical" ? "immediate" : status === "attention" ? "within_days" : "monitor",
       });
+    }
+  } else if (wantsAdvice && !wantsJournal && !wantsManual) {
+    // No machine named: advise on the one in the worst shape, and say so.
+    const target = match.asset ?? [...assets].filter((a) => a.score != null).sort((a, b) => (a.score ?? 100) - (b.score ?? 100))[0];
+    if (!target) {
+      intro.push(t("ag.askWhich"));
+    } else {
+      if (!match.asset) intro.push(t("ag.adviceWorst", { name: target.name }));
+      await run("diagnose_asset", { asset: target.id });
     }
   } else if (ref && wantsJournal) {
     await run("get_journal", { asset: ref, limit: 5 });

@@ -277,6 +277,7 @@ export const en = {
   "ag.proposeTop": ", largest deviation in {label}",
   "ag.proposeRoutine": "Routine inspection of {name}.",
   "ag.askWhich": "Which machine do you mean? Give a name or code, for example \"schedule service for FK-02 tomorrow\".",
+  "ag.adviceWorst": "No machine was named, so here is the one in the worst condition: {name}.",
   "ag.overview": "I'm not sure what you mean, so here is a summary of the machines that need attention. Try asking, for example, \"which machines are critical?\" or \"why did FK-02's score drop?\".",
   "tool.machines": "{n} machines",
   "tool.ambiguous": "ambiguous name ({list})",

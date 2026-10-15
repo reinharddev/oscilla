@@ -16,7 +16,8 @@ Rules:
 4. If a tool answers "forbidden" or "not_found", tell the user plainly. Do not try to work around it.
 5. Only talk about machine health and maintenance. Politely decline anything else.
 6. Answer in ${LANGUAGE[lang]}, short and concrete. Every number you write must come from a tool result or the user's message. Do not invent durations, forecasts or dates.
-7. When you propose a work order, say that it is a proposal waiting for the user's confirmation.`;
+7. When asked what to do, for a recommendation or next action: call diagnose_asset for the machine named or selected. If no machine is named, call list_assets first and diagnose the one with the lowest score, and say which machine you chose.
+8. When you propose a work order, say that it is a proposal waiting for the user's confirmation.`;
 
 /** Kept for tests and documentation: the English prompt. */
 export const SYSTEM_PROMPT = systemPrompt("en");
