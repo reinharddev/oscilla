@@ -63,7 +63,7 @@ export function OrdersView() {
                         <SelectContent>
                           <SelectGroup>
                             <SelectItem value={NONE}>{t("orders.unassigned")}</SelectItem>
-                            {people.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name || p.user_id.slice(0, 8)}</SelectItem>)}
+                            {people.filter((p) => p.role === "technician").map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name || p.user_id.slice(0, 8)}</SelectItem>)}
                           </SelectGroup>
                         </SelectContent>
                       </Select>

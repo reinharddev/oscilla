@@ -242,6 +242,7 @@ test("assignment: technicians take tasks for themselves only, leads assign anyon
   await as(U.techA, "update public.work_orders set assigned_to = null where id = $1", [wo.id]);
   // A manager can assign a technician of this warehouse, but not someone from another warehouse or org.
   await as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.techA, wo.id]);
+  await rejects(as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.managerA, wo.id]), /assignee_not_in_warehouse/);
   await rejects(as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.techB, wo.id]), /assignee_not_in_warehouse/);
   await rejects(as(U.managerA, "update public.work_orders set assigned_to = $1 where id = $2", [U.outsider, wo.id]), /assignee_not_in_warehouse/);
 });
