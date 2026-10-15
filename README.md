@@ -26,6 +26,8 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 
 - **Machine health view.** Every monitored machine in one table, worst first: status, score, estimated remaining life and next service. Selecting a machine shows the evidence behind the score, companion channels, a per-machine journal and the Copilot.
 - **Maintenance overview.** Machines monitored, machines needing attention, average score, open and overdue work orders, work completed in 30 days, and how often technicians confirmed the AI's diagnosis. All computed from the database.
+- **Impact.** A card on the overview turns the work-order history into figures a plant can check: downtime cost avoided, technician time saved, median time to start and to finish a repair, and what is still exposed on flagged machines. Every figure follows from assumptions shown on the card and editable there.
+- **Alerts.** A bell in the top bar lists machines that left their healthy range. Alerts are raised by the database when a reading arrives, escalate from "needs attention" to "critical", and close themselves when the machine is healthy again. "Explain and plan" opens the Copilot's explanation for that machine.
 - **Maintenance Copilot.** Explains the likely cause from signal evidence, manual excerpts and the journal. It cites its sources, states a qualitative confidence, and always asks for human review when a machine is critical.
 - **Question-answer agent.** Answers fleet questions by calling typed tools (health, schedule, journal, work orders). It can only propose changes; a person confirms them.
 - **Work orders and feedback.** A Copilot recommendation becomes a work order with the AI diagnosis attached; the technician later marks the diagnosis correct or incorrect.
@@ -150,6 +152,8 @@ npx tsc --noEmit
 The RLS tests run the real migration in an in-process Postgres and check what each role can read and write across warehouses.
 
 ## Validation on real data (CWRU)
+
+The results below are also shown in the app, under **Data sources**. Only the derived numbers (`knowledge/validation-cwru.json`) are kept in the repository; the recordings themselves are downloaded separately.
 
 The scoring was checked on real bearing recordings from the Case Western Reserve University Bearing Data Center (12 kHz drive-end accelerometer, 0 hp, about 1797 rpm): one normal recording and nine fault recordings (inner race, ball and outer race, each at 0.007", 0.014" and 0.021"). The unchanged production code was used and **nothing was tuned on CWRU**; the scoring constants come from the synthetic windows. The baseline is learned from the first half of the normal recording and the second half is held out.
 

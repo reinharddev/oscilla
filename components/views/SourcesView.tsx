@@ -6,6 +6,7 @@ import { fmtDateTime } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
 import { Page, Panel } from "./shared";
+import { ValidationCard } from "./ValidationCard";
 
 const STALE_MS = 15 * 60_000;
 
@@ -55,6 +56,7 @@ export function SourcesView() {
           </TableBody>
         </Table>
       </Panel>
+      <ValidationCard />
     </Page>
   );
 }
