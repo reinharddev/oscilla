@@ -6,6 +6,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // /api/ingest authenticates gateways with its own key, not with a browser session.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/ingest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // /api/ingest authenticates gateways with its own key, not with a browser session; /api/ping is a public probe.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/ingest|api/ping|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
