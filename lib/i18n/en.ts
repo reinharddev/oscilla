@@ -561,7 +561,7 @@ export const en = {
   "land.evidence.b.l": "held-out normal windows raised an alarm",
   "land.evidence.note": "CWRU bearing dataset, 12 kHz drive end, 0 hp, nothing tuned on this data. It is an easy test: one load and 10 windows per recording. Field data and remaining-life validation are still to do.",
   "land.amd.title": "Built to run on AMD",
-  "land.amd.body": "The Copilot and the agent call an OpenAI-compatible endpoint, so the model can be an open model served with vLLM on an AMD Instinct MI300X (ROCm) or on AMD Token Factory. Scoring runs as a small stateless service whose interface does not change when the model does.",
+  "land.amd.body": "The Copilot and the agent run on Google DeepMind's open Gemma 4 through an OpenAI-compatible endpoint served on AMD Token Factory, so the same code also runs with vLLM on an AMD Instinct MI300X (ROCm). Scoring runs as a small stateless service whose interface does not change when the model does.",
   "land.stack.title": "Built with",
   "land.team.soon": "Links coming soon.",
   "land.team.title": "Team",

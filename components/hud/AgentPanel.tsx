@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import type { AgentResult, Proposal } from "@/lib/agent/types";
@@ -199,7 +198,7 @@ export function AgentPanel() {
           )}
 
           {msgs.length > 0 && (
-            <ScrollArea className="max-h-[380px]">
+            <div className="scroll-thin max-h-[380px] overflow-y-auto">
               <div className="flex flex-col gap-4 pr-3">
                 {msgs.map((m, i) => (
                   <div key={i}>
@@ -210,7 +209,7 @@ export function AgentPanel() {
                 {busy && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Spinner />{t("agent.working")}</p>}
                 <div ref={end} />
               </div>
-            </ScrollArea>
+            </div>
           )}
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 

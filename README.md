@@ -15,7 +15,7 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 | Track | Track 1, Intelligent Industry |
 | Team | Welcome World |
 | Members | [Reinhard Dave](https://reinhard.my.id) ([LinkedIn](https://www.linkedin.com/in/reinhard-dave), [GitHub](https://github.com/reinharddev)), Chandra Wijaya Yeo, Lilian Angelina |
-| AMD stack | OpenAI-compatible LLM endpoint for the Copilot and the agent, served on AMD infrastructure (vLLM on Instinct MI300X with ROCm, or AMD Token Factory). Details in [Where AMD is used](#where-amd-is-used). |
+| AMD stack | Gemma 4 31B-IT (Google DeepMind, open weights) behind an OpenAI-compatible endpoint for the Copilot and the agent, served on AMD infrastructure (vLLM on Instinct MI300X with ROCm, or AMD Token Factory). Details in [Where AMD is used](#where-amd-is-used). |
 | License | [MIT](LICENSE) |
 
 **Try it without installing anything:** sign in with a demo account (admin, manager, technician or viewer, button on the sign-in page) or register a new one. New accounts get read-only access to the demo warehouse. Telemetry in the demo is synthetic; see the note above.
@@ -79,12 +79,14 @@ dummy sensors (SIM_ENABLED=true) ───────────────�
 
 The LLM behind the Copilot and the agent is any OpenAI-compatible endpoint. The intended deployment serves an open model with **vLLM on an AMD Instinct MI300X (ROCm)** from the AMD Developer Cloud, and the app is pointed at it with `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL`. The health-service image is a CPU image today; the interface is plain HTTP so a ROCm/PyTorch model can replace the scoring later without touching the web app.
 
+**Model: Gemma 4.** The submitted build runs Google DeepMind's open **Gemma 4 31B-IT** (`Gemma-4-31B-IT`) on AMD Token Factory for both the Copilot and the agent, including tool calling. It was chosen after comparing it with DeepSeek-V4-Flash on the same prompts: comparable answers, shorter replies and no reasoning overhead.
+
 **AMD Token Factory (shared, free during the event).** Token Factory exposes OpenAI-compatible endpoints served on AMD GPUs. Point the app at it with:
 
 ```
 LLM_BASE_URL=https://developer.amd.com.cn/radeon/api/v1
 LLM_API_KEY=rc-...                 # team key, kept in .env.local only
-LLM_MODEL=DeepSeek-V4-Flash        # call GET /v1/models for the current list
+LLM_MODEL=Gemma-4-31B-IT           # Google DeepMind's open Gemma 4; call GET /v1/models for the list
 LLM_REASONING_EFFORT=              # empty for non-thinking models; low or medium for thinking ones
 ```
 
