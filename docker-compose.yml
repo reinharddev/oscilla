@@ -29,6 +29,7 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
+      LLM_MAX_RPM: ${LLM_MAX_RPM:-15}
     depends_on:
       health: { condition: service_healthy }
     ports: ["3000:3000"]

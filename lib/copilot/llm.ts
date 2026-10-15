@@ -10,8 +10,22 @@ export interface LlmReply { content: string; model: string; usage?: { promptToke
  * Only fields that shared gateways accept are sent. A 429 caused by the concurrency limit
  * (short Retry-After) is retried once; per-minute limits are reported to the caller, which falls back.
  */
+// Sliding one-minute window of outgoing LLM calls in this process. A shared key has a small
+// requests-per-minute cap (AMD Token Factory: about 20); staying under it leaves room for
+// whoever else is using the key. Set LLM_MAX_RPM=0 to turn the budget off.
+const sent: number[] = [];
+export function llmBudget(now = Date.now()): { used: number; max: number } {
+  const max = Number(process.env.LLM_MAX_RPM ?? 15);
+  while (sent.length && now - sent[0] >= 60_000) sent.shift();
+  return { used: sent.length, max };
+}
+export function resetLlmBudget() { sent.length = 0; }
+
 export async function chatRequest(cfg: LlmConfig, body: Record<string, unknown>, fetchImpl: typeof fetch = fetch): Promise<any> {
   const url = `${cfg.baseUrl.replace(/\/$/, "")}/chat/completions`;
+  const budget = llmBudget();
+  if (budget.max > 0 && budget.used >= budget.max) throw new Error(`request budget reached (${budget.max} per minute); try again shortly`);
+  sent.push(Date.now());
   const payload = JSON.stringify({ model: cfg.model, ...body, ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}) });
   for (let attempt = 0; ; attempt++) {
     const res = await fetchImpl(url, {
@@ -28,6 +42,7 @@ export async function chatRequest(cfg: LlmConfig, body: Record<string, unknown>,
         continue;
       }
     }
+    if (res.status === 429) throw new Error("the model provider's rate limit was reached; try again in a minute");
     if (!res.ok) throw new Error(`LLM endpoint returned ${res.status}`);
     return res.json();
   }

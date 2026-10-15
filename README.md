@@ -57,7 +57,7 @@ LLM_MODEL=DeepSeek-V4-Flash        # call GET /v1/models for the current list
 LLM_REASONING_EFFORT=              # empty for non-thinking models; low or medium for thinking ones
 ```
 
-`npm run check:llm` lists the models, makes one chat call and prints latency and token counts without showing the key. The client sends only fields the gateway accepts, uses a single system message, and retries a short concurrency 429 once. The key is shared by the whole team (about 30 requests per minute and 8 concurrent), so under load the Copilot and agent fall back to their template and rule-based modes instead of failing. Prompts sent contain only synthetic demo data; the endpoint logs prompts for about two days.
+`npm run check:llm` lists the models, makes one chat call and prints latency and token counts without showing the key. The client sends only fields the gateway accepts, uses a single system message, and retries a short concurrency 429 once. The key is shared (the usage page for our team key shows 20 requests per minute, and a small daily spend cap), so the server keeps its own budget (`LLM_MAX_RPM`, default 15 per minute) and caches a Copilot answer for a minute per user, machine and data snapshot. When the budget or the provider limit is hit, the Copilot and agent fall back to their template and rule-based modes and say why, instead of failing. Prompts sent contain only synthetic demo data; the endpoint logs prompts for about two days.
 
 Without an LLM endpoint the app still works: the Copilot returns its template answer and the agent uses its rule-based planner. Both are labelled as such in the UI.
 

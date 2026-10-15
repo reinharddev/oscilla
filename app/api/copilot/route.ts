@@ -18,6 +18,11 @@ function limited(userId: string): boolean {
   return recent.length > 10;
 }
 
+// Same user + same machine + same data within a minute: reuse the answer instead of spending
+// another model call (the key is shared and rate limited).
+const CACHE_MS = 60_000;
+const cache = new Map<string, { at: number; body: unknown }>();
+
 function llmConfig() {
   const baseUrl = process.env.LLM_BASE_URL;
   if (!baseUrl) return null;
@@ -45,6 +50,15 @@ export async function POST(request: Request) {
   const { facts, journal, asset } = loaded;
 
   const llm = llmConfig();
+  const key = JSON.stringify([user.id, assetId, lang, facts.health?.takenAt ?? null, facts.health?.score ?? null, journal.length]);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return NextResponse.json({ ...(hit.body as object), cached: true });
+
   const result = await runCopilot({ facts, manuals: manuals as ManualChunk[], journal, llm, lang });
-  return NextResponse.json({ ...result, machine: asset.name, llmConfigured: Boolean(llm), snapshotAt: facts.health?.takenAt ?? null });
+  const body = { ...result, machine: asset.name, llmConfigured: Boolean(llm), snapshotAt: facts.health?.takenAt ?? null };
+  if (result.mode === "llm") {
+    for (const [k, v] of cache) if (Date.now() - v.at >= CACHE_MS) cache.delete(k);
+    cache.set(key, { at: Date.now(), body });
+  }
+  return NextResponse.json(body);
 }

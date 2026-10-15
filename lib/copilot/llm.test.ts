@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chatRequest } from "./llm";
+import { beforeEach, vi } from "vitest";
+import { chatRequest, llmBudget, resetLlmBudget } from "./llm";
 
 const ok = (body: unknown = { choices: [] }) => new Response(JSON.stringify(body), { status: 200 });
 
@@ -38,7 +39,27 @@ describe("chatRequest", () => {
 
   it("does not wait out a per-minute 429; the caller falls back instead", async () => {
     const f = fakeFetch([new Response("{}", { status: 429, headers: { "retry-after": "60" } })]);
-    await expect(chatRequest(cfg, { messages: [] }, f.impl)).rejects.toThrow("429");
+    await expect(chatRequest(cfg, { messages: [] }, f.impl)).rejects.toThrow("rate limit");
     expect(f.calls).toHaveLength(1);
+  });
+
+  describe("request budget", () => {
+    beforeEach(() => { resetLlmBudget(); vi.stubEnv("LLM_MAX_RPM", "2"); });
+
+    it("refuses calls past the per-minute budget without hitting the network", async () => {
+      const f = fakeFetch([ok(), ok(), ok()]);
+      await chatRequest(cfg, { messages: [] }, f.impl);
+      await chatRequest(cfg, { messages: [] }, f.impl);
+      await expect(chatRequest(cfg, { messages: [] }, f.impl)).rejects.toThrow("request budget");
+      expect(f.calls).toHaveLength(2);
+      expect(llmBudget().used).toBe(2);
+    });
+
+    it("is off when LLM_MAX_RPM is 0", async () => {
+      vi.stubEnv("LLM_MAX_RPM", "0");
+      const f = fakeFetch([ok(), ok(), ok()]);
+      for (let i = 0; i < 3; i++) await chatRequest(cfg, { messages: [] }, f.impl);
+      expect(f.calls).toHaveLength(3);
+    });
   });
 });
