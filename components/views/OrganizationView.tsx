@@ -17,7 +17,7 @@ export function OrganizationView() {
   const num = "text-right tabular-nums";
 
   return (
-    <Page title={t("org.title")} purpose={t("purpose.org")} aside={auth?.orgName}>
+    <Page title={t("org.title")} purpose={t("purpose.organization")} aside={auth?.orgName}>
       <Panel flush>
         <Table className="min-w-[860px]">
           <TableHeader>
