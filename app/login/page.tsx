@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LangLink } from "@/components/hud/LangSwitch";
 import { getT } from "@/lib/i18n/server";
 import LoginForm from "./LoginForm";
@@ -10,7 +11,7 @@ export default async function LoginPage() {
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Oscilla</h1>
+            <h1 className="text-2xl font-semibold tracking-tight"><Link href="/">Oscilla</Link></h1>
             <p className="mt-1 text-sm text-muted-foreground">{t("app.tagline")}</p>
           </div>
           <LangLink current={lang} />

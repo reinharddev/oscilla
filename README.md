@@ -83,7 +83,7 @@ npm run dev:health                # terminal 1, port 8100
 npm run dev                       # terminal 2, port 3000
 ```
 
-Open <http://localhost:3000>. The demo accounts are `admin@`, `manager@`, `technician@`, `viewer@` and `technician.sby@oscilla.example`; the shared password is whatever you set as `DEMO_PASSWORD`.
+Open <http://localhost:3000>: the landing page is public, the dashboard is at `/app` and needs a sign-in. The demo accounts are `admin@`, `manager@`, `technician@`, `viewer@` and `technician.sby@oscilla.example`; the shared password is whatever you set as `DEMO_PASSWORD`.
 
 To try the Copilot and agent without a GPU, run the mock LLM (`npm run mock:llm`, port 8199) and set `LLM_BASE_URL=http://localhost:8199/v1`. Start it with `MOCK_MODE=liar` to watch the guardrails reject a bad answer.
 

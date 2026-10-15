@@ -52,7 +52,7 @@ export function OrganizationView() {
                   {w.id === auth?.warehouseId ? (
                     <Button variant="secondary" size="sm" onClick={() => setView("overview")}>{t("org.current")}</Button>
                   ) : (
-                    <Button variant="outline" size="sm" onClick={() => router.push(`/?w=${w.id}`)}>{t("org.switch")}</Button>
+                    <Button variant="outline" size="sm" onClick={() => router.push(`/app?w=${w.id}`)}>{t("org.switch")}</Button>
                   )}
                 </TableCell>
               </TableRow>

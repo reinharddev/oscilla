@@ -22,7 +22,7 @@ export async function signIn(_prev: LoginState, formData: FormData): Promise<Log
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: t("login.errBad") };
-  redirect("/");
+  redirect("/app");
 }
 
 /** One-click sign-in for the demo accounts. The shared password lives only in the server env. */
@@ -35,7 +35,7 @@ export async function demoSignIn(role: string): Promise<LoginState> {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: t("login.errDemoFail") };
-  redirect("/");
+  redirect("/app");
 }
 
 export async function signOut() {

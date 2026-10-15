@@ -24,7 +24,7 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-card px-3 md:px-4">
       <span className="text-sm font-semibold tracking-tight">Oscilla</span>
       {warehouses.length > 1 ? (
-        <Select value={auth?.warehouseId} onValueChange={(id) => router.push(`/?w=${id}`)}>
+        <Select value={auth?.warehouseId} onValueChange={(id) => router.push(`/app?w=${id}`)}>
           <SelectTrigger size="sm" className="hidden max-w-[220px] sm:flex" aria-label={t("top.chooseWarehouse")}>
             <SelectValue />
           </SelectTrigger>

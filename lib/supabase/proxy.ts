@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Refreshes the auth session on every request and keeps signed-out visitors on /login.
+ * Refreshes the auth session on every request and sends signed-out visitors to /login.
  * The database enforces permissions with row-level security; this only decides which page
  * a visitor lands on.
  */
@@ -25,16 +25,19 @@ export async function updateSession(request: NextRequest) {
   );
 
   const { data: { user } } = await supabase.auth.getUser();
-  const onLogin = request.nextUrl.pathname.startsWith("/login");
+  const path = request.nextUrl.pathname;
+  const onLogin = path.startsWith("/login");
+  // The landing page is public; everything else needs a session.
+  const isPublic = onLogin || path === "/";
 
-  if (!user && !onLogin) {
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
   if (user && onLogin) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/app";
     return NextResponse.redirect(url);
   }
   return response;
