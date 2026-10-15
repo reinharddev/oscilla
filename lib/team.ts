@@ -14,5 +14,5 @@ export const TEAM_MEMBERS: TeamMember[] = [
   { name: "Lilian Angelina", website: "", linkedin: "", github: "" },
 ];
 
-/** Public repository, shown in the footer once it exists. */
-export const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL ?? "";
+/** Public repository: the header button and the footer link. */
+export const REPO_URL = process.env.NEXT_PUBLIC_REPO_URL || "https://github.com/reinharddev/oscilla";

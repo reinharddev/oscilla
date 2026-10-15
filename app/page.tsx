@@ -44,6 +44,12 @@ export default async function Landing() {
             <a href="#team" className="hover:text-foreground">{t("land.nav.team")}</a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" aria-label="Source code on GitHub">
+                <LinkIcon href="https://github.com" className="size-4" />
+                GitHub
+              </a>
+            </Button>
             <Button asChild size="sm"><Link href={signedIn ? "/app" : "/login"}>{signedIn ? t("land.openApp") : t("land.signIn")}</Link></Button>
           </div>
         </div>
