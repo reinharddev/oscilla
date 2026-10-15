@@ -12,10 +12,10 @@ export function ScoreTrend({ data }: { data: number[] }) {
   if (points.length < 2) return null;
   return (
     <ChartContainer config={config} className="h-28 w-full">
-      <LineChart data={points} margin={{ top: 6, right: 6, bottom: 0, left: -24 }}>
+      <LineChart data={points} margin={{ top: 6, right: 6, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} strokeOpacity={0.4} />
         <XAxis dataKey="i" hide />
-        <YAxis domain={[0, 100]} ticks={[0, 50, 75, 100]} tickLine={false} axisLine={false} width={40} />
+        <YAxis domain={[0, 100]} ticks={[0, 50, 75, 100]} tickLine={false} axisLine={false} width={28} tick={{ fontSize: 11 }} />
         <ReferenceLine y={75} stroke="var(--warning)" strokeDasharray="3 3" />
         <ReferenceLine y={50} stroke="var(--destructive)" strokeDasharray="3 3" />
         <ChartTooltip content={<ChartTooltipContent hideLabel />} />
