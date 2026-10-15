@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,10 @@ export default function LoginForm({ demoEnabled, lang }: { demoEnabled: boolean;
               </Button>
             </FieldGroup>
           </form>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {t("login.noAccount")}{" "}
+            <Link href="/login/register" className="text-foreground underline underline-offset-4">{t("login.register")}</Link>
+          </p>
         </CardContent>
       </Card>
 
