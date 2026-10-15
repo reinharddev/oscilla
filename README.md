@@ -7,6 +7,21 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 > **Read this first: what is real and what is simulated.**
 > There are no physical sensors in this project. Vibration signals come from a synthetic bearing-fault generator. The signal processing (RMS, kurtosis, FFT bands, envelope analysis at the bearing defect frequency), the scoring against each machine's own healthy baseline, the retrieval, the guardrails, the database and the permission model are real code. The service manuals in `knowledge/` are **synthetic samples**, not vendor documents. Scores have not been validated on field data.
 
+## Hackathon submission
+
+| | |
+|---|---|
+| Event | AMD Developer Hackathon: ACT III (lablab.ai) |
+| Track | Track 1, Intelligent Industry |
+| Team | Welcome World |
+| Members | [Reinhard Dave](https://reinhard.my.id) ([LinkedIn](https://www.linkedin.com/in/reinhard-dave), [GitHub](https://github.com/reinharddev)), Chandra Wijaya Yeo, Lilian Angelina |
+| AMD stack | OpenAI-compatible LLM endpoint for the Copilot and the agent, served on AMD infrastructure (vLLM on Instinct MI300X with ROCm, or AMD Token Factory). Details in [Where AMD is used](#where-amd-is-used). |
+| License | [MIT](LICENSE) |
+
+**Try it without installing anything:** sign in with a demo account (admin, manager, technician or viewer, button on the sign-in page) or register a new one. New accounts get read-only access to the demo warehouse. Telemetry in the demo is synthetic; see the note above.
+
+**Development disclosure:** the application was built by the team with AI coding assistance (Claude Code). Libraries are listed in `package.json` and `health-service/requirements.txt`; UI components come from shadcn/ui.
+
 ## What it does
 
 - **Machine health view.** Every monitored machine in one table, worst first: status, score, estimated remaining life and next service. Selecting a machine shows the evidence behind the score, companion channels, a per-machine journal and the Copilot.
