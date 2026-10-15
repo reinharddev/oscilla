@@ -178,6 +178,7 @@ export const en = {
   "agent.title": "Assistant",
   "agent.context": "The selected machine is used as context",
   "agent.intro": "Ask about machine health, schedules, journals or procedures. The assistant only sees what you may see and only proposes; you confirm.",
+  "agent.clear": "Clear conversation",
   "agent.s1": "Which machines are critical?",
   "agent.s2": "Why did FK-02's score drop?",
   "agent.s3": "When was AGV Robot R2 last serviced?",

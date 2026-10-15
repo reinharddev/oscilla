@@ -1,5 +1,6 @@
 "use client";
 
+import { loadCopilot, saveCopilot } from "@/lib/copilot-cache";
 import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,7 +24,7 @@ const toLocalInput = (ts: number) => new Date(ts - new Date().getTimezoneOffset(
 export function CopilotPanel({ machineId, canAct }: { machineId: string; canAct: boolean }) {
   const t = useT();
   const scheduleMaintenance = useStore((s) => s.scheduleMaintenance);
-  const [reply, setReply] = useState<Reply | null>(null);
+  const [reply, setReply] = useState<Reply | null>(() => loadCopilot<Reply>(machineId)?.data ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [open, setOpen] = useState<string | null>(null);
@@ -38,6 +39,7 @@ export function CopilotPanel({ machineId, canAct }: { machineId: string; canAct:
       if (!res.ok) throw new Error(t("copilot.errFail"));
       const data: Reply = await res.json();
       setReply(data);
+      saveCopilot(machineId, data);
       useStore.getState().recordLlm({
         at: Date.now(), source: "copilot", mode: data.mode === "llm" ? "llm" : "fallback", model: data.model, endpoint: data.endpoint,
         latencyMs: data.cached ? 0 : data.latencyMs, promptTokens: data.usage?.promptTokens, completionTokens: data.usage?.completionTokens, cached: data.cached,

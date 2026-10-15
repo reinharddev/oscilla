@@ -179,6 +179,7 @@ export const id: Record<Key, string> = {
   "agent.title": "Asisten",
   "agent.context": "Mesin terpilih dipakai sebagai konteks",
   "agent.intro": "Tanyakan kondisi mesin, jadwal, jurnal, atau prosedur. Asisten hanya melihat apa yang boleh kamu lihat dan hanya mengusulkan; kamu yang mengonfirmasi.",
+  "agent.clear": "Hapus percakapan",
   "agent.s1": "Mesin mana yang kritis?",
   "agent.s2": "Kenapa skor FK-02 turun?",
   "agent.s3": "Kapan AGV Robot R2 terakhir diservis?",

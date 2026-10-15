@@ -302,3 +302,17 @@ test("anonymous users see nothing", async () => {
   await assert.rejects(db.query("select * from public.assets"), /permission denied/);
   await db.exec("reset role");
 });
+
+test("assistant chat history is private to its author", async () => {
+  await as(U.techA, "insert into public.agent_messages (role, content) values ('user', 'hello')");
+  const own = await as(U.techA, "select id from public.agent_messages");
+  const other = await as(U.managerA, "select id from public.agent_messages");
+  assert.equal(own.rows.length, 1);
+  assert.equal(other.rows.length, 0);
+  await assert.rejects(
+    as(U.managerA, "insert into public.agent_messages (user_id, role, content) values ($1, 'user', 'spoof')", [U.techA]),
+    /row-level security/,
+  );
+  await as(U.managerA, "delete from public.agent_messages");
+  assert.equal((await as(U.techA, "select id from public.agent_messages")).rows.length, 1);
+});

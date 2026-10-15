@@ -59,5 +59,32 @@ export async function POST(request: Request) {
   const llm = llmConfig();
   const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm, lang);
   const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected, lang });
-  return NextResponse.json({ ...result, llmConfigured: Boolean(llm), endpoint: endpointHost() });
+  const reply = { ...result, llmConfigured: Boolean(llm), endpoint: endpointHost() };
+  // History is a convenience: a failed write must not lose the answer the user is waiting for.
+  const at = Date.now();
+  await supabase.from("agent_messages").insert([
+    { user_id: user.id, role: "user", content: question, created_at: new Date(at - 1).toISOString() },
+    { user_id: user.id, role: "assistant", content: result.answer, reply, created_at: new Date(at).toISOString() },
+  ]);
+  return NextResponse.json(reply);
+}
+
+/** The signed-in user's recent conversation. Row-level security limits it to their own rows. */
+export async function GET() {
+  const supabase = await createClient();
+  const user = await getAuthUser(supabase);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { data, error } = await supabase
+    .from("agent_messages").select("id,role,content,reply,created_at").order("created_at", { ascending: false }).limit(40);
+  if (error) return NextResponse.json({ error: "read failed" }, { status: 500 });
+  return NextResponse.json({ messages: (data ?? []).reverse() });
+}
+
+export async function DELETE() {
+  const supabase = await createClient();
+  const user = await getAuthUser(supabase);
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { error } = await supabase.from("agent_messages").delete().eq("user_id", user.id);
+  if (error) return NextResponse.json({ error: "delete failed" }, { status: 500 });
+  return NextResponse.json({ ok: true });
 }

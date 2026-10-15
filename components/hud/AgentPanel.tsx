@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send } from "lucide-react";
+import { create } from "zustand";
+import { Send, Trash2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +18,13 @@ import { canWrite, useStore } from "@/lib/store";
 
 type Reply = AgentResult & { llmConfigured: boolean };
 type Msg = { role: "user"; content: string } | { role: "assistant"; content: string; reply?: Reply };
+
+/** Chat lives outside the panel so switching tabs or pages does not drop it; Supabase keeps it across reloads. */
+const PROPOSAL_FRESH_MS = 30 * 60_000;
+const useChat = create<{ userId: string | null; msgs: Msg[]; setMsgs: (f: (m: Msg[]) => Msg[]) => void }>((set) => ({
+  userId: null, msgs: [],
+  setMsgs: (f) => set((s) => ({ msgs: f(s.msgs) })),
+}));
 
 function ProposalCard({ p, question }: { p: Proposal; question: string }) {
   const t = useT();
@@ -108,11 +116,30 @@ function Assistant({ msg, question }: { msg: Extract<Msg, { role: "assistant" }>
 export function AgentPanel() {
   const t = useT();
   const selectedId = useStore((s) => (s.machines.some((m) => m.id === s.selected?.id) ? s.selected?.id : null));
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const userId = useStore((s) => s.auth?.userId ?? null);
+  const msgs = useChat((s) => s.msgs);
+  const setMsgs = useChat((s) => s.setMsgs);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const end = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!userId || useChat.getState().userId === userId) return;
+    useChat.setState({ userId, msgs: [] });
+    void (async () => {
+      try {
+        const res = await fetch("/api/agent");
+        if (!res.ok || useChat.getState().userId !== userId) return;
+        const { messages } = (await res.json()) as { messages: { role: "user" | "assistant"; content: string; reply: Reply | null; created_at: string }[] };
+        const fresh = (ts: string) => Date.now() - Date.parse(ts) < PROPOSAL_FRESH_MS;
+        const loaded: Msg[] = messages.map((m) =>
+          m.role === "user" ? { role: "user", content: m.content }
+            // Proposals are based on health at the time; drop them once they are likely stale.
+            : { role: "assistant", content: m.content, reply: m.reply ? { ...m.reply, proposals: fresh(m.created_at) ? m.reply.proposals : [] } : undefined });
+        useChat.setState((s) => ({ msgs: [...loaded, ...s.msgs] }));
+      } catch { /* history is optional */ }
+    })();
+  }, [userId]);
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [msgs, busy]);
   const suggestions = [t("agent.s1"), t("agent.s2"), t("agent.s3"), t("agent.s4")];
 
@@ -140,6 +167,11 @@ export function AgentPanel() {
     }
   }
 
+  async function clearChat() {
+    setMsgs(() => []);
+    try { await fetch("/api/agent", { method: "DELETE" }); } catch { /* ignore */ }
+  }
+
   const lastQuestion = (i: number) => [...msgs.slice(0, i)].reverse().find((m) => m.role === "user")?.content ?? "";
 
   return (
@@ -148,6 +180,11 @@ export function AgentPanel() {
         <CardHeader>
           <CardTitle>{t("agent.title")}</CardTitle>
           {selectedId && <CardDescription>{t("agent.context")}</CardDescription>}
+          {msgs.length > 0 && (
+            <CardAction>
+              <Button variant="ghost" size="icon-sm" onClick={() => void clearChat()} aria-label={t("agent.clear")}><Trash2 /></Button>
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {msgs.length === 0 && (

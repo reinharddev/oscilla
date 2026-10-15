@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { Theme } from "./theme";
+import { clearCopilot } from "./copilot-cache";
 import { createClient } from "./supabase/client";
 import { MAX_SAMPLES, type AnalyzeSample, type LlmSample } from "./bench";
 import type { Health, HealthStatus, Machine, MachineType } from "./health";
@@ -253,6 +254,7 @@ export const useStore = create<State>((set, get) => ({
 
   /** Dummy-data mode: set a machine's damage level on the server and take the new reading. */
   setSimulated: async (id, severity) => {
+    clearCopilot(id);
     try {
       const res = await fetch("/api/sim/fault", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assetId: id, severity }) });
       if (!res.ok) return undefined;
@@ -275,6 +277,7 @@ export const useStore = create<State>((set, get) => ({
       selected: { id: target.id, type: target.type, label: target.label },
       copilotReplies: {}, copilotRequest: null,
     });
+    clearCopilot();
     if (canWrite(s.auth)) {
       const previous = await get().setSimulated(target.id, 0.03);
       get().setDemo({ restore: previous ?? null });
@@ -283,6 +286,7 @@ export const useStore = create<State>((set, get) => ({
   demoReset: async () => {
     const { demo } = get();
     set({ demo: idleDemo, copilotReplies: {}, copilotRequest: null });
+    clearCopilot();
     // Put the machine back where it was unless the demo already repaired it.
     if (demo.targetId && demo.restore !== undefined && demo.restore !== null && demo.step < 6) await get().setSimulated(demo.targetId, demo.restore);
   },
@@ -351,6 +355,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   completeMaintenance: async (id, note, feedback) => {
+    clearCopilot(id);
     const s = get();
     const workOrderId = s.schedules[id].workOrderId;
     const text = note.trim() || translate(get().locale, "journal.finishedDefault");

@@ -179,7 +179,7 @@ export default async function Landing() {
           {TEAM_MEMBERS.length > 0 && (
             <ul className="mt-6 grid gap-4 sm:grid-cols-3">
               {TEAM_MEMBERS.map((m) => {
-                const links = [["Website", m.website], ["LinkedIn", m.linkedin], ["GitHub", m.github]].filter(([, href]) => href);
+                const links = [m.website, m.linkedin, m.github].filter(Boolean).map((href) => [href.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href]);
                 return (
                   <li key={m.name}>
                     <Card size="sm" className="h-full">
@@ -189,7 +189,7 @@ export default async function Landing() {
                           <ul className="flex flex-col gap-1 text-sm">
                             {links.map(([label, href]) => (
                               <li key={label}>
-                                <a href={href} target="_blank" rel="noopener noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">{label}</a>
+                                <a href={href} target="_blank" rel="noopener noreferrer" className="break-all text-muted-foreground underline underline-offset-4 hover:text-foreground">{label}</a>
                               </li>
                             ))}
                           </ul>
