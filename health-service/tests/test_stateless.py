@@ -62,3 +62,12 @@ def test_series_rejects_out_of_range_severity():
     base = _baseline()
     r = client.post("/demo/series", json={"asset_id": "m-1", "severities": [0.1, 1.4], "rpm": RPM, "baseline": base})
     assert r.status_code == 422
+
+
+def test_healthz_answers_head_for_uptime_monitors():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    c = TestClient(app)
+    assert c.head("/healthz").status_code == 200
+    assert c.get("/healthz").json()["status"] == "ok"

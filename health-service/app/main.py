@@ -66,7 +66,8 @@ class SimulateRequest(BaseModel):
     seed: int | None = None
 
 
-@app.get("/healthz")
+# HEAD too: uptime monitors probe with HEAD.
+@app.api_route("/healthz", methods=["GET", "HEAD"])
 def healthz() -> dict:
     return {"status": "ok", "baselines": len(_baselines)}
 
