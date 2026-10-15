@@ -59,7 +59,7 @@ describe.skipIf(!ready)("agent backend with real row-level security", () => {
 
   it("the agent tools refuse a viewer's proposal and a cross-warehouse question", async () => {
     const now = () => Date.now();
-    const lang = "id" as const;
+    const lang = "en" as const;
     const p = await executeTool(viewer, "propose_work_order", { asset: "FK-02", summary: "coba" }, { now, lang });
     expect(p.ok).toBe(false);
     expect(p.proposal).toBeUndefined();
@@ -70,7 +70,7 @@ describe.skipIf(!ready)("agent backend with real row-level security", () => {
   });
 
   it("only warehouse data of the user's own site shows up in answers", async () => {
-    const r = await runAgent({ question: "mesin mana yang bermasalah?", backend: techSby, llm: null, now: Date.now, lang: "id" });
+    const r = await runAgent({ question: "mesin mana yang bermasalah?", backend: techSby, llm: null, now: Date.now, lang: "en" });
     expect(r.answer).not.toMatch(/Forklift FK-0|AGV Robot R/);
   });
 });

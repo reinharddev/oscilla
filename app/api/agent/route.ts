@@ -57,7 +57,8 @@ export async function POST(request: Request) {
   const lang = await getLang();
   await freshenSimulated(supabase, {});
   const llm = llmConfig();
-  const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm, lang);
+  // The agent restates the diagnosis itself, so the nested Copilot call uses the cited template: one model round fewer.
+  const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm, lang, { diagnoseWithLlm: false });
   const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected, lang });
   const reply = { ...result, llmConfigured: Boolean(llm), endpoint: endpointHost() };
   // History is a convenience: a failed write must not lose the answer the user is waiting for.

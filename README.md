@@ -20,7 +20,7 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
   - *Admin:* all of that plus **Organization** (every warehouse side by side) and **People** (roles).
   - *Viewer:* **Overview** and machines, read-only, with no action buttons.
   The database enforces the same boundaries with row-level security. Assignment has its own guard: a technician can only take a task for themselves, a manager can assign anyone who works in that warehouse.
-- **English and Indonesian UI**, switchable at any time.
+- **English UI** throughout, including the demo data.
 - **Guided demo.** The "Demo" button walks one machine from healthy to worn to repaired in seven steps (dummy-sensor mode only).
 
 ## Loading and request budget

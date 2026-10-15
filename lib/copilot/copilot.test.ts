@@ -7,7 +7,7 @@ import type { Facts, ManualChunk } from "./types";
 
 const chunks = manuals as ManualChunk[];
 /** Existing assertions are written for Indonesian output. */
-const runCopilot = (o: CopilotInput) => runCopilotBase({ lang: "id", ...o });
+const runCopilot = (o: CopilotInput) => runCopilotBase({ lang: "en", ...o });
 
 const bearingEvidence = [
   { feature: "bpfo_envelope_ratio", label: "Energy at the bearing defect frequency", labelId: "Energi di frekuensi cacat bearing", value: 30.42, baseline: 1.84, z_score: 64.5 },
@@ -63,7 +63,7 @@ describe("retrieval", () => {
   });
 
   it("builds sources with stable ids", () => {
-    const s = gatherSources({ facts: facts(), manuals: chunks, journal, lang: "id" });
+    const s = gatherSources({ facts: facts(), manuals: chunks, journal, lang: "en" });
     expect(s.map((x) => x.id)).toEqual(expect.arrayContaining(["M1", "J1"]));
     expect(s.find((x) => x.id === "M1")!.sample).toBe(true);
   });
@@ -108,7 +108,7 @@ describe("template mode (no LLM configured)", () => {
   it("requires human review for a critical machine", async () => {
     const r = await runCopilot({ facts: facts(), manuals: chunks, journal });
     expect(r.review.required).toBe(true);
-    expect(r.review.reasons.join(" ")).toMatch(/kritis/i);
+    expect(r.review.reasons.join(" ")).toMatch(/critical/i);
   });
 
   it("a healthy machine needs no review and gets high confidence", async () => {
@@ -177,7 +177,7 @@ describe("LLM mode", () => {
   it("falls back to the template when the reply is not JSON", async () => {
     const r = await runCopilot({ facts: facts(), manuals: chunks, journal, llm, fetchImpl: fakeLlm("Maaf, saya tidak bisa.") });
     expect(r.mode).toBe("template");
-    expect(r.warnings.join(" ")).toMatch(/LLM tidak dapat dipakai/);
+    expect(r.warnings.join(" ")).toMatch(/LLM could not be used/);
   });
 
   it("falls back when the endpoint fails", async () => {
@@ -220,7 +220,7 @@ describe("English output", () => {
     }) as unknown as typeof fetch;
     await en({ llm, fetchImpl: spy });
     expect(seen).toContain("in English");
-    await runCopilotBase({ facts: facts(), manuals: chunks, journal, llm, fetchImpl: spy, lang: "id" });
-    expect(seen).toContain("in Indonesian");
+    await runCopilotBase({ facts: facts(), manuals: chunks, journal, llm, fetchImpl: spy, lang: "en" });
+    expect(seen).toContain("in English");
   });
 });

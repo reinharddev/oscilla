@@ -1,18 +1,17 @@
 import { en, type Key } from "./en";
-import { id } from "./id";
 
-export type Lang = "en" | "id";
+export type Lang = "en";
 export type { Key };
-export const LANGS: Lang[] = ["en", "id"];
-/** English by default: the product is judged and demoed in English; Indonesian is one click away. */
+export const LANGS: Lang[] = ["en"];
+/** The product is English only. */
 export const DEFAULT_LANG: Lang = "en";
 export const LOCALE_COOKIE = "oscilla-locale";
-export const LANG_LABEL: Record<Lang, string> = { en: "English", id: "Bahasa Indonesia" };
+export const LANG_LABEL: Record<Lang, string> = { en: "English" };
 
-const dicts: Record<Lang, Record<Key, string>> = { en, id };
+const dicts: Record<Lang, Record<Key, string>> = { en };
 
-export const parseLang = (v: string | null | undefined): Lang => (v === "id" || v === "en" ? v : DEFAULT_LANG);
-export const dateLocale = (lang: Lang) => (lang === "id" ? "id-ID" : "en-GB");
+export const parseLang = (_v?: string | null): Lang => DEFAULT_LANG;
+export const dateLocale = (_lang: Lang) => "en-GB";
 
 export type Params = Record<string, string | number>;
 

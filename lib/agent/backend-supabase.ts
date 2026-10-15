@@ -18,7 +18,7 @@ const DAY = 86_400_000;
  * row-level security, the agent can never read or reach more than its user can.
  * It has no write methods by design.
  */
-export function supabaseBackend(supabase: SupabaseClient, userId: string, manuals: ManualChunk[], llm: LlmConfig | null, lang: Lang = "en"): Backend {
+export function supabaseBackend(supabase: SupabaseClient, userId: string, manuals: ManualChunk[], llm: LlmConfig | null, lang: Lang = "en", opts: { diagnoseWithLlm?: boolean } = {}): Backend {
   const t = makeT(lang);
   async function briefs(filter: { type?: string; ids?: string[] } = {}): Promise<AssetBrief[]> {
     let q = supabase.from("assets").select("id, name, serial_number, type, warehouse_id, warehouses ( name )").order("name");
@@ -113,7 +113,7 @@ export function supabaseBackend(supabase: SupabaseClient, userId: string, manual
     async diagnose(assetId) {
       const loaded = await loadCopilotInputs(supabase, assetId, lang);
       if (!loaded) return null;
-      return runCopilot({ facts: loaded.facts, manuals, journal: loaded.journal, llm, lang });
+      return runCopilot({ facts: loaded.facts, manuals, journal: loaded.journal, llm: opts.diagnoseWithLlm === false ? null : llm, lang });
     },
 
     async canWrite(assetId) {

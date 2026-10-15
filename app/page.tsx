@@ -2,7 +2,6 @@ import Link from "next/link";
 import { ArrowRight, ExternalLink } from "lucide-react";
 import { LinkIcon } from "@/components/brand-icons";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LangLink } from "@/components/hud/LangSwitch";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +44,6 @@ export default async function Landing() {
             <a href="#team" className="hover:text-foreground">{t("land.nav.team")}</a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <LangLink current={lang} />
             <Button asChild size="sm"><Link href={signedIn ? "/app" : "/login"}>{signedIn ? t("land.openApp") : t("land.signIn")}</Link></Button>
           </div>
         </div>

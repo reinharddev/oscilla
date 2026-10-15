@@ -1,7 +1,7 @@
 import type { Lang } from "../i18n";
 import type { Facts, Source } from "./types";
 
-const LANGUAGE: Record<Lang, string> = { en: "English", id: "Indonesian" };
+const LANGUAGE: Record<Lang, string> = { en: "English" };
 
 export function systemPrompt(lang: Lang): string {
   return `You are Oscilla Maintenance Copilot, an assistant for warehouse maintenance technicians.

@@ -72,7 +72,7 @@ function Assistant({ msg, question }: { msg: Extract<Msg, { role: "assistant" }>
   const r = msg.reply;
   return (
     <div className="flex flex-col gap-2">
-      <p className="whitespace-pre-line text-sm leading-relaxed">{msg.content}</p>
+      <p className="whitespace-pre-line text-sm leading-relaxed">{msg.content.replace(/\*\*|__|^#+\s/gm, "")}</p>
       {r?.proposals.map((p) => <ProposalCard key={p.id} p={p} question={question} />)}
       {r && r.warnings.length > 0 && (
         <ul className="list-disc pl-4 text-xs text-warning">{r.warnings.map((w) => <li key={w}>{w}</li>)}</ul>

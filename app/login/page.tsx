@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { LangLink } from "@/components/hud/LangSwitch";
 import { Button } from "@/components/ui/button";
 import { getT } from "@/lib/i18n/server";
 import LoginForm from "./LoginForm";
@@ -16,7 +15,6 @@ export default async function LoginPage() {
           <Button variant="ghost" size="sm" asChild>
             <Link href="/"><ArrowLeft data-icon="inline-start" />{t("login.back")}</Link>
           </Button>
-          <LangLink current={lang} />
         </div>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 pb-10">
           <div>

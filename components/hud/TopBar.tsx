@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { type Key } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/use-t";
 import { canWrite, useStore } from "@/lib/store";
-import { LangSwitch } from "./LangSwitch";
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
 
@@ -56,7 +55,6 @@ export function TopBar() {
         >
           {theme === "day" ? <Moon /> : <Sun />}
         </Button>
-        <LangSwitch />
         {auth && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
