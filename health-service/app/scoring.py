@@ -39,6 +39,18 @@ class Baseline:
         return cls(mean=mean, std=std, n_windows=len(windows))
 
 
+    def to_payload(self) -> dict:
+        return {"feature_names": FEATURE_NAMES, "mean": [float(x) for x in self.mean], "std": [float(x) for x in self.std], "n_windows": self.n_windows}
+
+    @classmethod
+    def from_payload(cls, p: dict) -> "Baseline":
+        if list(p["feature_names"]) != list(FEATURE_NAMES):
+            raise ValueError("baseline was learned with a different feature set; re-learn it")
+        if len(p["mean"]) != len(FEATURE_NAMES) or len(p["std"]) != len(FEATURE_NAMES):
+            raise ValueError("baseline has the wrong length")
+        return cls(mean=np.asarray(p["mean"], dtype=float), std=np.asarray(p["std"], dtype=float), n_windows=int(p["n_windows"]))
+
+
 def status_of(score: float) -> str:
     return "healthy" if score >= 75 else "attention" if score >= 50 else "critical"
 

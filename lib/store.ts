@@ -1,20 +1,23 @@
 import { create } from "zustand";
-import type { EntityType } from "./layout";
-import type { WarehouseLayout } from "./layout-schema";
 import type { Theme } from "./theme";
 import { createClient } from "./supabase/client";
 import { MAX_SAMPLES, type AnalyzeSample, type LlmSample } from "./bench";
-import { Evidence, Health, Machine, readings, scoreOf, seedHealth, statusOf, statusKey, faultKey } from "./health";
+import type { Health, HealthStatus, Machine, MachineType } from "./health";
+import type { AssetHealth } from "./server/fleet-health";
+import { statusKey } from "./health";
 import { fmtDateTime, LOCALE_COOKIE, translate, type Key, type Lang, type MsgParams } from "./i18n";
 
-export interface Selected { id: string; type: EntityType; label: string }
-export interface EntityInfo { id: string; label: string; type: EntityType }
-export interface LogEvent { id: number; at: number; kind: "info" | "success" | "warn" ; key: Key; params?: MsgParams }
-export interface Order { id: string; customer: string; items: number; status: "Picking" | "Packed" | "Shipped" }
+export interface Selected { id: string; type: MachineType; label: string }
+export interface LogEvent { id: number; at: number; kind: "info" | "success" | "warn"; key: Key; params?: MsgParams }
 export type Role = "admin" | "manager" | "technician" | "viewer";
 export interface AuthInfo { userId: string; email: string; name: string; role: Role; orgName: string; warehouseName: string; warehouseId: string }
 export interface Schedule { due: number | null; lastDone: number | null; inProgress: boolean; workOrderId?: string }
 export interface JournalEntry { id: string; ts: number; kind: "note" | "alert" | "schedule" | "start" | "done"; text: string; author?: string; key?: Key; params?: MsgParams }
+export interface WorkOrder {
+  id: string; asset_id: string; status: "scheduled" | "in_progress" | "done" | "cancelled";
+  summary?: string; due_at: string | null; started_at?: string | null; completed_at: string | null; created_at?: string;
+  diagnosis_feedback?: "correct" | "incorrect" | null;
+}
 export interface DemoState {
   open: boolean;
   active: boolean;
@@ -23,6 +26,8 @@ export interface DemoState {
   scores: { baseline?: number; peak?: number; after?: number };
   skipped: boolean;
   dueAt?: number;
+  /** Damage level the machine had before the demo touched it, so exiting can put it back. */
+  restore?: number | null;
 }
 export type UiTab = "overview" | "machine" | "agent" | "fleet" | null;
 export interface HydrateInput {
@@ -30,45 +35,56 @@ export interface HydrateInput {
   auth: AuthInfo;
   names: Record<string, string>;
   warehouses: { id: string; name: string }[];
-  layout: WarehouseLayout;
-  assets: { id: string; name: string; serial_number: string; type: EntityType; org_id: string; warehouse_id: string }[];
+  assets: { id: string; name: string; serial_number: string; type: MachineType; org_id: string; warehouse_id: string }[];
   journal: { id: string; asset_id: string; author_id: string; kind: JournalEntry["kind"]; body: string; created_at: string }[];
-  workOrders: { id: string; asset_id: string; status: string; due_at: string | null; completed_at: string | null }[];
+  workOrders: WorkOrder[];
+  health: AssetHealth[];
 }
 
-export type AnalysisResult =
-  | { assetId: string; score: number; status: "healthy" | "attention" | "critical"; evidence: Evidence[]; modelVersion: string; source: string }
-  | { assetId: string; error: string };
-
 export const canWrite = (a: AuthInfo | null) => a?.role === "admin" || a?.role === "manager" || a?.role === "technician";
-export interface FleetState { battery: number; status: "active" | "charging" }
 
-const CUSTOMERS = ["Tokopedia", "Shopee", "Lazada", "Blibli", "Bukalapak", "JD.ID", "Zalora", "Sociolla"];
 let eventId = 1;
-let orderSeq = 4820;
+
+const toHealth = (h: AssetHealth): Health => ({
+  score: h.score, status: h.status, evidence: h.evidence, modelVersion: h.modelVersion, source: h.source,
+  takenAt: Date.parse(h.takenAt), vib: h.vib, temp: h.temp, cur: h.cur, rulDays: h.rulDays, hist: h.hist,
+});
+
+function schedulesFrom(orders: WorkOrder[], assetIds: string[]): Record<string, Schedule> {
+  const out: Record<string, Schedule> = {};
+  for (const id of assetIds) {
+    const mine = orders.filter((w) => w.asset_id === id);
+    const open = mine.find((w) => w.status === "in_progress");
+    const planned = mine.filter((w) => w.status === "scheduled" && w.due_at).sort((x, y) => Date.parse(x.due_at!) - Date.parse(y.due_at!))[0];
+    const done = mine.filter((w) => w.status === "done" && w.completed_at).map((w) => Date.parse(w.completed_at!));
+    out[id] = {
+      due: planned?.due_at ? Date.parse(planned.due_at) : null,
+      lastDone: done.length ? Math.max(...done) : null,
+      inProgress: Boolean(open),
+      workOrderId: open?.id ?? planned?.id,
+    };
+  }
+  return out;
+}
 
 interface State {
-  speed: number;
   theme: Theme;
   locale: Lang;
   selected: Selected | null;
-  ordersToday: number; shipped: number;
-  series: number[];
-  zones: Record<string, number>;
-  fleet: Record<string, FleetState>;
-  orders: Order[];
   events: LogEvent[];
   health: Record<string, Health>;
   schedules: Record<string, Schedule>;
+  workOrders: WorkOrder[];
   journal: Record<string, JournalEntry[]>;
   auth: AuthInfo | null;
   machines: Machine[];
-  entities: EntityInfo[];
-  layout: WarehouseLayout | null;
   warehouses: { id: string; name: string }[];
   assetMeta: Record<string, { org_id: string; warehouse_id: string }>;
+  names: Record<string, string>;
 
-  analysisStatus: "idle" | "live" | "offline";
+  /** State of the data feed: "ok" after a successful read, "error" after a failed one. */
+  feed: "idle" | "ok" | "error";
+  feedAt: number | null;
   pollNonce: number;
   requestPoll: () => void;
   requestTab: { tab: UiTab; n: number } | null;
@@ -82,10 +98,10 @@ interface State {
   recordAnalyze: (s: AnalyzeSample) => void;
   clearBench: () => void;
   setDemo: (p: Partial<DemoState>) => void;
-  demoPrepare: () => void;
-  demoReset: () => void;
-  setWear: (id: string, wear: number) => void;
-  applyAnalyses: (results: AnalysisResult[], serviceUp: boolean) => void;
+  demoPrepare: () => Promise<void>;
+  demoReset: () => Promise<void>;
+  setSimulated: (id: string, severity: number) => Promise<number | null | undefined>;
+  applyHealth: (list: AssetHealth[], ok: boolean) => void;
 
   hydrate: (init: HydrateInput) => void;
   scheduleMaintenance: (id: string, due: number, extra?: { summary?: string; aiDiagnosis?: unknown }) => Promise<void>;
@@ -97,10 +113,6 @@ interface State {
   setLocale: (l: Lang) => void;
   select: (s: Selected | null) => void;
   log: (kind: LogEvent["kind"], key: Key, params?: MsgParams) => void;
-  deliver: () => void;
-  pallet: () => void;
-  truckServed: (label: string) => void;
-  tick: () => void;
 }
 
 type Get = () => State;
@@ -113,12 +125,11 @@ const toEntry = (j: HydrateInput["journal"][number], names: Record<string, strin
 /** Insert a journal row (RLS decides whether this user may) and show it locally. */
 async function addEntry(get: Get, set: Set, id: string, kind: JournalEntry["kind"], text: string) {
   const s = get();
-  const assetId = id;
-  const meta = s.assetMeta[assetId];
+  const meta = s.assetMeta[id];
   if (!meta) return;
   const { data, error } = await createClient()
     .from("journal_entries")
-    .insert({ asset_id: assetId, ...meta, kind, body: text })
+    .insert({ asset_id: id, ...meta, kind, body: text })
     .select("id, created_at, author_id")
     .single();
   if (error) { get().log("warn", "log.journalFail", { msg: error.message }); return; }
@@ -126,74 +137,45 @@ async function addEntry(get: Get, set: Set, id: string, kind: JournalEntry["kind
   set((st) => ({ journal: { ...st.journal, [id]: [entry, ...(st.journal[id] ?? [])] } }));
 }
 
+const idleDemo: DemoState = { open: false, active: false, step: 0, targetId: null, scores: {}, skipped: false };
+
 export const useStore = create<State>((set, get) => ({
-  speed: 1,
   theme: "day",
   locale: "en",
   selected: null,
-  ordersToday: 1284, shipped: 1127,
-  series: [34, 41, 38, 52, 47, 58, 49, 61, 55, 63, 59, 70, 64, 72, 66, 75, 69, 78, 71, 80, 74, 69, 77, 83, 79, 86, 81, 88, 84, 90],
-  zones: {},
-  fleet: {},
-  orders: [
-    { id: "SO-4815", customer: "Shopee", items: 6, status: "Shipped" },
-    { id: "SO-4816", customer: "Tokopedia", items: 2, status: "Packed" },
-    { id: "SO-4817", customer: "Blibli", items: 9, status: "Packed" },
-    { id: "SO-4818", customer: "Lazada", items: 4, status: "Picking" },
-    { id: "SO-4819", customer: "Zalora", items: 1, status: "Picking" },
-  ],
   events: [],
   health: {},
   schedules: {},
+  workOrders: [],
   journal: {},
-
   auth: null,
-  analysisStatus: "idle",
+  machines: [],
+  warehouses: [],
+  assetMeta: {},
+  names: {},
+  feed: "idle",
+  feedAt: null,
   pollNonce: 0,
   requestTab: null,
   copilotRequest: null,
   copilotReplies: {},
-  demo: { open: false, active: false, step: 0, targetId: null, scores: {}, skipped: false },
+  demo: idleDemo,
   bench: { llm: [], analyze: [] },
-  machines: [],
-  entities: [],
-  layout: null,
-  warehouses: [],
-  assetMeta: {},
 
   hydrate: (init) => {
     const machines: Machine[] = init.assets.map((a) => ({ id: a.id, label: a.name, type: a.type, serial: a.serial_number }));
-    const actors: EntityInfo[] = init.layout.entities
-      .filter((e) => !e.serial)
-      .map((e) => ({ id: e.id!, label: e.label ?? e.id!, type: e.model }));
-    const entities: EntityInfo[] = [...machines.map(({ id, label, type }) => ({ id, label, type })), ...actors];
-    const demoWear = Object.fromEntries(
-      init.layout.entities.filter((e) => e.serial && e.demoWear !== undefined).map((e) => [e.serial!, e.demoWear!]),
-    );
     const assetMeta: Record<string, { org_id: string; warehouse_id: string }> = {};
     const journal: Record<string, JournalEntry[]> = {};
-    const schedules: Record<string, Schedule> = {};
     for (const a of init.assets) {
       assetMeta[a.id] = { org_id: a.org_id, warehouse_id: a.warehouse_id };
       journal[a.id] = init.journal.filter((j) => j.asset_id === a.id).map((j) => toEntry(j, init.names)).sort((x, y) => y.ts - x.ts);
-      const orders = init.workOrders.filter((w) => w.asset_id === a.id);
-      const open = orders.find((w) => w.status === "in_progress");
-      const planned = orders
-        .filter((w) => w.status === "scheduled" && w.due_at)
-        .sort((x, y) => Date.parse(x.due_at!) - Date.parse(y.due_at!))[0];
-      const done = orders.filter((w) => w.status === "done" && w.completed_at).map((w) => Date.parse(w.completed_at!));
-      schedules[a.id] = {
-        due: planned?.due_at ? Date.parse(planned.due_at) : null,
-        lastDone: done.length ? Math.max(...done) : null,
-        inProgress: Boolean(open),
-        workOrderId: open?.id ?? planned?.id,
-      };
     }
+    const health: Record<string, Health> = {};
+    for (const h of init.health) health[h.assetId] = toHealth(h);
     set({
-      locale: init.locale, auth: init.auth, layout: init.layout, warehouses: init.warehouses, machines, entities, assetMeta, journal, schedules,
-      health: seedHealth(machines, demoWear),
-      fleet: Object.fromEntries(entities.map((f, i) => [f.id, { battery: 62 + ((i * 17) % 36), status: "active" as const }])),
-      zones: Object.fromEntries(init.layout.zones.map((z, i) => [z.id, 40 + ((i * 17) % 45)])),
+      locale: init.locale, auth: init.auth, warehouses: init.warehouses, machines, assetMeta, journal, names: init.names,
+      workOrders: init.workOrders, schedules: schedulesFrom(init.workOrders, init.assets.map((a) => a.id)),
+      health, feed: init.health.length ? "ok" : "idle", feedAt: init.health.length ? Date.now() : null,
       selected: null, events: [],
     });
   },
@@ -206,79 +188,79 @@ export const useStore = create<State>((set, get) => ({
   clearBench: () => set({ bench: { llm: [], analyze: [] } }),
   setDemo: (p) => set((s) => ({ demo: { ...s.demo, ...p } })),
 
-  /** The machine the guided demo follows: the one the layout marks as starting worn, else the first. */
-  demoPrepare: () => {
+  /** Dummy-data mode: set a machine's damage level on the server and take the new reading. */
+  setSimulated: async (id, severity) => {
+    try {
+      const res = await fetch("/api/sim/fault", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assetId: id, severity }) });
+      if (!res.ok) return undefined;
+      const data = (await res.json()) as { previous: number | null; health: AssetHealth | null };
+      if (data.health) get().applyHealth([data.health], true);
+      return data.previous;
+    } catch {
+      return undefined;
+    }
+  },
+
+  /** The guided demo follows the machine that is currently worst, taken back to a healthy level. */
+  demoPrepare: async () => {
     const s = get();
-    if (!s.layout || s.machines.length === 0) return;
-    const worn = s.layout.entities.filter((e) => e.serial && e.demoWear !== undefined).sort((a, b) => (b.demoWear ?? 0) - (a.demoWear ?? 0))[0];
-    const target = s.machines.find((m) => m.serial === worn?.serial) ?? s.machines[0];
-    const fresh = seedHealth(s.machines, {}); // every machine healthy; natural drift is frozen while the demo runs
-    const h = fresh[target.id];
-    const r = readings(0.03, h.fault);
-    fresh[target.id] = { ...h, wear: 0.03, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] } };
+    const target = [...s.machines].sort((a, b) => (s.health[a.id]?.score ?? 100) - (s.health[b.id]?.score ?? 100))[0];
+    if (!target) return;
     set({
-      health: fresh,
-      demo: { open: true, active: true, step: 1, targetId: target.id, scores: {}, skipped: false },
+      demo: { open: true, active: true, step: 1, targetId: target.id, scores: {}, skipped: false, restore: undefined },
       selected: { id: target.id, type: target.type, label: target.label },
       copilotReplies: {}, copilotRequest: null,
-      pollNonce: s.pollNonce + 1,
     });
+    if (canWrite(s.auth)) {
+      const previous = await get().setSimulated(target.id, 0.03);
+      get().setDemo({ restore: previous ?? null });
+    }
   },
-  demoReset: () => {
-    const s = get();
-    const demoWear = Object.fromEntries((s.layout?.entities ?? []).filter((e) => e.serial && e.demoWear !== undefined).map((e) => [e.serial!, e.demoWear!]));
-    set({ health: seedHealth(s.machines, demoWear), demo: { open: false, active: false, step: 0, targetId: null, scores: {}, skipped: false }, copilotReplies: {}, copilotRequest: null, pollNonce: s.pollNonce + 1 });
+  demoReset: async () => {
+    const { demo } = get();
+    set({ demo: idleDemo, copilotReplies: {}, copilotRequest: null });
+    // Put the machine back where it was unless the demo already repaired it.
+    if (demo.targetId && demo.restore !== undefined && demo.restore !== null && demo.step < 6) await get().setSimulated(demo.targetId, demo.restore);
   },
-  setWear: (id, wear) =>
-    set((s) => {
-      const h = s.health[id];
-      if (!h) return {};
-      const r = readings(wear, h.fault, (Math.random() - 0.5) * 2);
-      const cap = (a: number[], v: number) => [...a.slice(-39), v];
-      return { health: { ...s.health, [id]: { ...h, wear, ...r, hist: { vib: cap(h.hist.vib, r.vib), temp: cap(h.hist.temp, r.temp), cur: cap(h.hist.cur, r.cur) } } } };
-    }),
 
-  applyAnalyses: (results, serviceUp) =>
+  applyHealth: (list, ok) =>
     set((st) => {
+      if (!ok) return { feed: "error" as const };
       const health = { ...st.health };
-      const alerts: { id: string; label: string; status: "healthy" | "attention" | "critical" }[] = [];
-      for (const r of results) {
-        const prev = health[r.assetId];
-        if (!prev || !("score" in r)) continue;
-        const next: Health = { ...prev, analysis: { score: r.score, status: r.status, evidence: r.evidence, modelVersion: r.modelVersion, source: r.source, at: Date.now() } };
-        if (statusOf(prev) !== statusOf(next) && statusOf(next) !== "healthy" && !st.schedules[r.assetId]?.inProgress) {
-          const label = st.machines.find((m) => m.id === r.assetId)?.label ?? r.assetId;
-          alerts.push({ id: r.assetId, label, status: statusOf(next) });
+      const alerts: { label: string; status: HealthStatus }[] = [];
+      for (const raw of list) {
+        const next = toHealth(raw);
+        const prev = health[raw.assetId];
+        if (prev && prev.status !== next.status && next.status !== "healthy" && !st.schedules[raw.assetId]?.inProgress) {
+          alerts.push({ label: st.machines.find((m) => m.id === raw.assetId)?.label ?? raw.assetId, status: next.status });
         }
-        health[r.assetId] = next;
-      }
-      const journal = { ...st.journal };
-      for (const a of alerts) {
-        journal[a.id] = [{ id: `local-${Date.now()}-${a.id}`, ts: Date.now(), kind: "alert" as const, text: "", key: "alert.statusAnalysis" as Key, params: { status: { k: statusKey(a.status) } } }, ...(journal[a.id] ?? [])];
+        health[raw.assetId] = next;
       }
       queueMicrotask(() => alerts.forEach((a) => get().log("warn", "log.statusAnalysis", { name: a.label, status: { k: statusKey(a.status) } })));
-      return { health, journal, analysisStatus: serviceUp ? ("live" as const) : ("offline" as const) };
+      return { health, feed: "ok" as const, feedAt: Date.now() };
     }),
 
   scheduleMaintenance: async (id, due, extra) => {
     const s = get();
-    const assetId = id;
-    const meta = s.assetMeta[assetId];
+    const meta = s.assetMeta[id];
     if (!meta) return;
+    const summary = (extra?.summary ?? translate(get().locale, "wo.scheduledDefault")).slice(0, 2000);
     const { data, error } = await createClient()
       .from("work_orders")
-      .insert({ asset_id: assetId, ...meta, summary: (extra?.summary ?? translate(get().locale, "wo.scheduledDefault")).slice(0, 2000), due_at: new Date(due).toISOString(), ai_diagnosis: extra?.aiDiagnosis ?? null })
-      .select("id")
+      .insert({ asset_id: id, ...meta, summary, due_at: new Date(due).toISOString(), ai_diagnosis: extra?.aiDiagnosis ?? null })
+      .select("id, created_at")
       .single();
     if (error) { get().log("warn", "log.scheduleFail", { msg: error.message }); return; }
-    set((st) => ({ schedules: { ...st.schedules, [id]: { ...st.schedules[id], due, workOrderId: data.id } } }));
+    set((st) => {
+      const workOrders = [...st.workOrders, { id: data.id, asset_id: id, status: "scheduled" as const, summary, due_at: new Date(due).toISOString(), completed_at: null, created_at: data.created_at }];
+      return { workOrders, schedules: { ...st.schedules, [id]: { ...st.schedules[id], due, workOrderId: data.id } } };
+    });
     await addEntry(get, set, id, "schedule", translate(get().locale, "journal.scheduled", { date: fmtDateTime(due, get().locale) }));
   },
 
   startMaintenance: async (id) => {
     const s = get();
-    const assetId = id;
-    const meta = s.assetMeta[assetId];
+    const meta = s.assetMeta[id];
     if (!meta) return;
     const sb = createClient();
     const now = new Date().toISOString();
@@ -286,14 +268,18 @@ export const useStore = create<State>((set, get) => ({
     if (workOrderId) {
       const { error } = await sb.from("work_orders").update({ status: "in_progress", started_at: now }).eq("id", workOrderId);
       if (error) { get().log("warn", "log.startFail", { msg: error.message }); return; }
+      set((st) => ({ workOrders: st.workOrders.map((w) => (w.id === workOrderId ? { ...w, status: "in_progress" as const, started_at: now } : w)) }));
     } else {
+      const summary = translate(get().locale, "wo.startedDefault");
       const { data, error } = await sb
         .from("work_orders")
-        .insert({ asset_id: assetId, ...meta, status: "in_progress", started_at: now, summary: translate(get().locale, "wo.startedDefault") })
+        .insert({ asset_id: id, ...meta, status: "in_progress", started_at: now, summary })
         .select("id")
         .single();
       if (error) { get().log("warn", "log.startFail", { msg: error.message }); return; }
-      workOrderId = data.id;
+      workOrderId = data.id as string;
+      const created = workOrderId;
+      set((st) => ({ workOrders: [...st.workOrders, { id: created, asset_id: id, status: "in_progress" as const, summary, due_at: null, started_at: now, completed_at: null, created_at: now }] }));
     }
     set((st) => ({ schedules: { ...st.schedules, [id]: { ...st.schedules[id], inProgress: true, workOrderId } } }));
     await addEntry(get, set, id, "start", translate(get().locale, "journal.started"));
@@ -304,21 +290,22 @@ export const useStore = create<State>((set, get) => ({
     const s = get();
     const workOrderId = s.schedules[id].workOrderId;
     const text = note.trim() || translate(get().locale, "journal.finishedDefault");
+    const completedAt = new Date().toISOString();
     if (workOrderId) {
       const { error } = await createClient()
         .from("work_orders")
-        .update({ status: "done", completed_at: new Date().toISOString(), ...(feedback ? { diagnosis_feedback: feedback } : {}) })
+        .update({ status: "done", completed_at: completedAt, ...(feedback ? { diagnosis_feedback: feedback } : {}) })
         .eq("id", workOrderId);
       if (error) { get().log("warn", "log.finishFail", { msg: error.message }); return; }
     }
-    const h = s.health[id];
-    const r = readings(0.02, h.fault);
     set((st) => ({
+      workOrders: st.workOrders.map((w) => (w.id === workOrderId ? { ...w, status: "done" as const, completed_at: completedAt, diagnosis_feedback: feedback ?? null } : w)),
       schedules: { ...st.schedules, [id]: { due: null, lastDone: Date.now(), inProgress: false } },
-      health: { ...st.health, [id]: { ...h, wear: 0.02, ...r, hist: { vib: [r.vib], temp: [r.temp], cur: [r.cur] }, analysis: undefined } },
     }));
     await addEntry(get, set, id, "done", text);
     get().log("success", "log.maintDone", { name: get().machines.find((m) => m.id === id)?.label ?? id });
+    // Dummy sensors report the repaired machine on the next read; ask for it now.
+    get().requestPoll();
   },
 
   addNote: async (id, text) => {
@@ -339,68 +326,4 @@ export const useStore = create<State>((set, get) => ({
   select: (selected) => set({ selected }),
 
   log: (kind, key, params) => set((s) => ({ events: [{ id: eventId++, at: Date.now(), kind, key, params }, ...s.events].slice(0, 30) })),
-
-  deliver: () => set((s) => ({ ordersToday: s.ordersToday + 1 })),
-  pallet: () => {},
-  truckServed: (label) => {
-    set((s) => ({ shipped: s.shipped + 18 }));
-    get().log("success", "log.truckServed", { name: label });
-  },
-
-  tick: () => {
-    const s = get();
-    if (s.speed === 0) return;
-    const k = s.speed;
-    const rate = Math.round((3 + Math.random() * 5) * k);
-    const series = [...s.series.slice(1), Math.min(99, 45 + rate * 6 + Math.random() * 10)];
-
-    const fleet = { ...s.fleet };
-    for (const f of s.entities) {
-      const st = fleet[f.id];
-      if (!st) continue;
-      if (st.status === "charging") {
-        const b = Math.min(100, st.battery + 4 * k);
-        fleet[f.id] = { battery: b, status: b >= 90 ? "active" : "charging" };
-      } else {
-        const b = Math.max(0, st.battery - (0.25 + Math.random() * 0.5) * k * (f.type === "truck" || f.type === "worker" ? 0.4 : 1));
-        fleet[f.id] = { battery: b, status: b < 14 && f.type !== "truck" && f.type !== "worker" ? "charging" : "active" };
-        if (b < 14 && st.status === "active" && f.type !== "truck" && f.type !== "worker") get().log("warn", "log.batteryLow", { name: f.label });
-      }
-    }
-
-    const zones = Object.fromEntries(Object.entries(s.zones).map(([z, v]) => [z, Math.max(20, Math.min(97, v + (Math.random() - 0.5) * 3))]));
-
-    const health = { ...s.health };
-    const journal = { ...s.journal };
-    for (const m of s.machines) {
-      const h = health[m.id];
-      if (!h) continue;
-      if (s.schedules[m.id]?.inProgress) continue;
-      const before = statusOf(h);
-      const wear = s.demo.active ? h.wear : Math.min(0.99, h.wear + 0.0009 * k * (0.7 + Math.random() * 0.6));
-      const r = readings(wear, h.fault, (Math.random() - 0.5) * 2);
-      const cap = (a: number[], v: number) => [...a.slice(-39), v];
-      const nh: Health = { ...h, wear, ...r, hist: { vib: cap(h.hist.vib, r.vib), temp: cap(h.hist.temp, r.temp), cur: cap(h.hist.cur, r.cur) } };
-      health[m.id] = nh;
-      const after = statusOf(nh);
-      if (after !== before && after !== "healthy") {
-        journal[m.id] = [{ id: `local-${Date.now()}-${m.id}`, ts: Date.now(), kind: "alert", text: "", key: "alert.statusFault", params: { status: { k: statusKey(after) }, fault: { k: faultKey(nh.fault) } } }, ...journal[m.id]];
-        get().log("warn", "log.statusChange", { name: m.label, status: { k: statusKey(after) }, fault: { k: faultKey(nh.fault) } });
-      }
-    }
-
-    let orders = s.orders;
-    if (Math.random() < 0.45 * k) {
-      orders = orders.map((o) => (o.status === "Picking" && Math.random() < 0.5 ? { ...o, status: "Packed" as const } : o.status === "Packed" && Math.random() < 0.5 ? { ...o, status: "Shipped" as const } : o));
-      orders = [...orders.filter((o) => o.status !== "Shipped" || Math.random() < 0.6)];
-      if (orders.length < 6) orders = [...orders, { id: `SO-${++orderSeq}`, customer: CUSTOMERS[Math.floor(Math.random() * CUSTOMERS.length)], items: 1 + Math.floor(Math.random() * 9), status: "Picking" }];
-      orders = orders.slice(-6);
-    }
-
-    if (Math.random() < 0.05) {
-      const msgs: Key[] = ["log.alert.stock", "log.alert.door", "log.alert.pallet", "log.alert.temp"];
-      get().log("warn", msgs[Math.floor(Math.random() * msgs.length)]);
-    }
-    set({ series, fleet, zones, orders, health, journal, ordersToday: s.ordersToday + rate, shipped: s.shipped + Math.floor(rate / 2) });
-  },
 }));

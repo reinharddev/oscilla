@@ -5,6 +5,7 @@ import type { ManualChunk } from "@/lib/copilot/types";
 import { loadCopilotInputs } from "@/lib/copilot/load";
 import { getLang } from "@/lib/i18n/server";
 import { createClient } from "@/lib/supabase/server";
+import { freshenSimulated } from "@/lib/server/fleet-health";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
   if (typeof assetId !== "string" || !UUID.test(assetId)) return NextResponse.json({ error: "assetId (uuid) required" }, { status: 400 });
 
   const lang = await getLang();
+  await freshenSimulated(supabase, { assetIds: [assetId] });
   const loaded = await loadCopilotInputs(supabase, assetId, lang);
   if (!loaded) return NextResponse.json({ error: "not found" }, { status: 404 });
   const { facts, journal, asset } = loaded;

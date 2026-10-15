@@ -198,6 +198,39 @@ test("health snapshots are written by the ingest service only", async () => {
   assert.equal((await as(U.techB, "select score from public.health_snapshots")).rows.length, 0);
 });
 
+test("learned baselines are readable inside the warehouse and never writable by users", async () => {
+  await db.exec("set role service_role");
+  await db.query(
+    "insert into public.asset_baselines (asset_id, org_id, warehouse_id, model_version, payload) select id, org_id, warehouse_id, 'baseline-v0', '{}' from public.assets where id = $1",
+    [assetA],
+  );
+  await db.exec("reset role");
+  assert.equal((await as(U.techA, "select asset_id from public.asset_baselines")).rows.length, 1);
+  assert.equal((await as(U.techB, "select asset_id from public.asset_baselines")).rows.length, 0);
+  await rejects(as(U.admin, "update public.asset_baselines set model_version = 'x'"), /permission denied/);
+  await rejects(as(U.admin, "delete from public.asset_baselines"), /permission denied/);
+});
+
+test("simulator state is invisible to every user", async () => {
+  await db.exec("set role service_role");
+  await db.query("insert into public.sim_state (asset_id, severity, rate_per_day) values ($1, 0.7, 0.02)", [assetA]);
+  await db.exec("reset role");
+  await rejects(as(U.admin, "select * from public.sim_state"), /permission denied/);
+  await rejects(as(U.techA, "update public.sim_state set severity = 0"), /permission denied/);
+});
+
+test("finishing a work order resets the simulated damage (the machine was repaired)", async () => {
+  const { rows: [wo] } = await as(U.techA,
+    "insert into public.work_orders (asset_id, org_id, warehouse_id, summary) select id, org_id, warehouse_id, 'replace bearing' from public.assets where id = $1 returning id",
+    [assetA]);
+  await as(U.techA, "update public.work_orders set status = 'in_progress' where id = $1", [wo.id]);
+  assert.equal(Number((await db.query("select severity from public.sim_state where asset_id = $1", [assetA])).rows[0].severity), 0.7);
+  await as(U.techA, "update public.work_orders set status = 'done', completed_at = now() where id = $1", [wo.id]);
+  const after = (await db.query("select severity, rate_per_day from public.sim_state where asset_id = $1", [assetA])).rows[0];
+  assert.equal(Number(after.severity), 0.02);
+  assert.ok(Number(after.rate_per_day) <= 0.004);
+});
+
 test("integrity: a child row cannot point at a warehouse from another organization", async () => {
   await assert.rejects(
     db.query("insert into public.assets (org_id, warehouse_id, serial_number, name, type) values ($1, $2, 'BAD-1', 'x', 'agv')", [ORG, OTHER_WH]),

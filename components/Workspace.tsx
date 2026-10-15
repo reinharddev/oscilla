@@ -14,52 +14,48 @@ import { DemoPanel } from "./hud/DemoPanel";
 
 export default function Workspace({ initial }: { initial: HydrateInput }) {
   const t = useT();
-  const ready = useStore((s) => s.layout !== null && s.auth?.warehouseId === initial.auth.warehouseId);
+  const ready = useStore((s) => s.auth?.warehouseId === initial.auth.warehouseId);
   const [tab, setTab] = useState<"overview" | "machine" | "agent" | "fleet">("fleet");
   const requestTab = useStore((s) => s.requestTab);
   useEffect(() => { if (requestTab) setTab(requestTab.tab ?? "fleet"); }, [requestTab]);
 
   useEffect(() => {
-    const id = setInterval(() => useStore.getState().tick(), 1000);
     try {
       const saved = localStorage.getItem("wt-theme");
       if (saved === "night" || saved === "day") useStore.getState().setTheme(saved);
       else if (window.matchMedia("(prefers-color-scheme: dark)").matches) useStore.getState().setTheme("night");
     } catch {}
     useStore.getState().hydrate(initial);
-    useStore.getState().log("info", "log.systemOnline");
-    return () => clearInterval(id);
   }, [initial]);
 
-  // Ask the health service to score every machine; falls back to local estimates if unreachable.
+  // Read the latest readings from the server. In dummy-sensor mode this also lets the sensors report
+  // when they are due; with real sensors it is a plain read.
   useEffect(() => {
     let busy = false;
     let again = false;
     const run = async (force = false) => {
       const s = useStore.getState();
       if (busy) { if (force) again = true; return; }
-      if ((!force && (s.speed === 0 || document.hidden)) || s.machines.length === 0) return;
+      if (!force && document.hidden) return;
+      if (s.machines.length === 0 || !s.auth) return;
       busy = true;
       try {
-        const items = s.machines.map((m) => ({ assetId: m.id, severity: Math.min(1, Math.max(0, s.health[m.id]?.wear ?? 0)) }));
         const t0 = performance.now();
-        const res = await fetch("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
+        const res = await fetch(`/api/health?warehouse=${s.auth.warehouseId}`, { method: "POST", cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
-        useStore.getState().applyAnalyses(data.results, data.serviceUp);
-        useStore.getState().recordAnalyze({ at: Date.now(), ms: Math.round(performance.now() - t0), machines: items.length, serviceUp: Boolean(data.serviceUp) });
+        useStore.getState().applyHealth(data.health, true);
+        useStore.getState().recordAnalyze({ at: Date.now(), ms: Math.round(performance.now() - t0), machines: data.health.length, serviceUp: true });
       } catch {
-        useStore.setState({ analysisStatus: "offline" });
+        useStore.getState().applyHealth([], false);
       } finally {
         busy = false;
         if (again) { again = false; void run(true); }
       }
     };
-    const first = setTimeout(() => void run(), 1500);
-    const id = setInterval(() => void run(), 5000);
-    // The guided demo asks for an immediate analysis after changing a machine.
+    const id = setInterval(() => void run(), 10_000);
     const unsub = useStore.subscribe((s, prev) => { if (s.pollNonce !== prev.pollNonce) void run(true); });
-    return () => { clearTimeout(first); clearInterval(id); unsub(); };
+    return () => { clearInterval(id); unsub(); };
   }, [initial]);
 
   if (!ready) {

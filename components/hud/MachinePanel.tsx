@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { analysis, faultKey, featureLabel, LIMIT, rulDays, scoreOf, statusKey, statusOf } from "@/lib/health";
+import { analysis, featureLabel, LIMIT, scoreOf, statusKey } from "@/lib/health";
 import { fmtDate, fmtDateTime, renderMsg, type Key, type Lang, type T } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { canWrite, useStore } from "@/lib/store";
@@ -45,7 +45,7 @@ function Reading({ label, unit, value, data, limit }: { label: string; unit: str
 export function MachinePanel() {
   const t = useT();
   const lang: Lang = useLang();
-  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth, machines, analysisStatus } = useStore();
+  const { selected, health, schedules, journal, scheduleMaintenance, startMaintenance, completeMaintenance, addNote, auth, machines } = useStore();
   const writable = canWrite(auth);
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
@@ -63,12 +63,12 @@ export function MachinePanel() {
 
   const id = selected.id;
   const h = health[id], sch = schedules[id], log = journal[id] ?? [];
-  const st = sch.inProgress ? "maintenance" : statusOf(h);
+  const st = sch.inProgress ? "maintenance" : h.status;
   const overdue = sch.due !== null && sch.due < Date.now() && !sch.inProgress;
 
   return (
     <>
-      <Section title={selected.label} aside={t(faultKey(h.fault))}>
+      <Section title={selected.label} aside={h.source === "simulator" ? t("fh.simulated") : t("fh.sensors")}>
         <div className="mb-3 text-xs text-ink/55">{t("mach.serial", { s: machine.serial })}</div>
         <div className="flex items-end justify-between">
           <div>
@@ -77,36 +77,32 @@ export function MachinePanel() {
           </div>
           <div className="text-right">
             <div className={`text-sm font-semibold ${STATUS_CLASS[st]}`}>{t(statusKey(st))}</div>
-            <div className="text-xs text-ink/55">{t("mach.rul", { n: rulDays(h) })}</div>
+            <div className="text-xs text-ink/55">{h.rulDays === null ? t("mach.noDecline") : h.rulDays < 1 ? t("mach.rulUnderDay") : t("mach.rul", { n: Math.round(h.rulDays) })}</div>
           </div>
         </div>
         <div className="mt-3 divide-y divide-rule border-y border-rule">
-          <Reading label={t("mach.vibration")} unit="mm/s" value={h.vib} data={h.hist.vib} limit={LIMIT.vib} />
-          <Reading label={t("mach.motorTemp")} unit="°C" value={h.temp} data={h.hist.temp} limit={LIMIT.temp} />
-          <Reading label={t("mach.current")} unit="A" value={h.cur} data={h.hist.cur} limit={LIMIT.cur} />
+          {h.vib !== null && <Reading label={t("mach.vibration")} unit="mm/s" value={h.vib} data={h.hist.vib} limit={LIMIT.vib} />}
+          {h.temp !== null && <Reading label={t("mach.motorTemp")} unit="°C" value={h.temp} data={h.hist.temp} limit={LIMIT.temp} />}
+          {h.cur !== null && <Reading label={t("mach.current")} unit="A" value={h.cur} data={h.hist.cur} limit={LIMIT.cur} />}
         </div>
         <div className="mt-3 text-xs text-ink/55">{t("mach.autoAnalysis")}</div>
         <p className="mt-1 text-[13px] leading-relaxed">{analysis(h, t)}</p>
-        {h.analysis ? (
-          <div className="mt-3">
-            <div className="text-xs text-ink/55">{t("mach.evidence")}</div>
-            {h.analysis.evidence.length === 0 ? (
-              <p className="mt-1 text-xs text-ink/70">{t("mach.noDeviation")}</p>
-            ) : (
-              <ul className="mt-1 divide-y divide-rule border-y border-rule text-xs">
-                {h.analysis.evidence.map((e) => (
-                  <li key={e.feature} className="flex justify-between gap-3 py-1.5">
-                    <span>{featureLabel(e, t)}</span>
-                    <span className="shrink-0 text-ink/60">{e.value.toFixed(2)} vs {e.baseline.toFixed(2)} · z {e.z_score}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-1.5 text-xs text-ink/45">{t("mach.computedBy", { v: h.analysis.modelVersion })}</div>
-          </div>
-        ) : analysisStatus === "offline" ? (
-          <p className="mt-2 text-xs text-ink/45">{t("mach.offline")}</p>
-        ) : null}
+        <div className="mt-3">
+          <div className="text-xs text-ink/55">{t("mach.evidence")}</div>
+          {h.evidence.length === 0 ? (
+            <p className="mt-1 text-xs text-ink/70">{t("mach.noDeviation")}</p>
+          ) : (
+            <ul className="mt-1 divide-y divide-rule border-y border-rule text-xs">
+              {h.evidence.map((e) => (
+                <li key={e.feature} className="flex justify-between gap-3 py-1.5">
+                  <span>{featureLabel(e, t)}</span>
+                  <span className="shrink-0 text-ink/60">{e.value.toFixed(2)} vs {e.baseline.toFixed(2)} · z {e.z_score}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-1.5 text-xs text-ink/45">{t("mach.computedBy", { v: h.modelVersion })} · {fmtDateTime(h.takenAt, lang)}</div>
+        </div>
       </Section>
 
       <CopilotPanel key={id} machineId={id} canAct={writable} />

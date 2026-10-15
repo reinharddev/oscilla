@@ -8,17 +8,23 @@ import { scoreOf } from "@/lib/health";
 import { canWrite, useStore } from "@/lib/store";
 
 const TOTAL = 7;
-const WEAR = { warn: 0.5, bad: 0.88 };
+const DAMAGE = { warn: 0.5, bad: 0.88 };
 
-/** Ask the analysis poll to run now and wait (bounded) until this machine has a fresh analysis. */
+/** Ask for a fresh reading and wait (bounded) until this machine's latest reading changes. */
 async function settle(id: string): Promise<number> {
-  const before = useStore.getState().health[id]?.analysis?.at;
+  const before = useStore.getState().health[id]?.takenAt;
   useStore.getState().requestPoll();
-  for (let i = 0; i < 30; i++) {
-    await new Promise((r) => setTimeout(r, 200));
-    const a = useStore.getState().health[id]?.analysis?.at;
-    if (a && a !== before) break;
+  for (let i = 0; i < 40; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    if (useStore.getState().health[id]?.takenAt !== before) break;
   }
+  const h = useStore.getState().health[id];
+  return h ? scoreOf(h) : 0;
+}
+
+/** Set a machine's damage level on the server (dummy-sensor mode) and return the resulting score. */
+async function inject(id: string, severity: number): Promise<number> {
+  await useStore.getState().setSimulated(id, severity);
   const h = useStore.getState().health[id];
   return h ? scoreOf(h) : 0;
 }
@@ -47,7 +53,14 @@ export function DemoPanel() {
     if (!demo.active || !id) return;
     const st = useStore.getState();
     if (step >= 4 && step <= 6) st.showTab("machine");
-    if (step === 1) { st.showTab(null); void settle(id).then((sc) => setResult(t("demo.s1.result", { score: sc }))); }
+    if (step === 1) {
+      st.showTab(null);
+      void (async () => {
+        for (let i = 0; i < 40 && writer && useStore.getState().demo.restore === undefined; i++) await new Promise((r) => setTimeout(r, 150));
+        const h = useStore.getState().health[id];
+        if (h) setResult(t("demo.s1.result", { score: scoreOf(h) }));
+      })();
+    }
   }, [demo.active, id, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function advance() {
@@ -59,15 +72,14 @@ export function DemoPanel() {
       let next = step + 1;
       if (step === 1) {
         st.setDemo({ scores: { ...st.demo.scores, baseline: score ?? undefined } });
-        st.setWear(id, WEAR.warn);
-        const sc = await settle(id);
+        if (!writer) { useStore.getState().setDemo({ step: 3, scores: { ...st.demo.scores, baseline: score ?? undefined, peak: score ?? undefined } }); return; }
+        const sc = await inject(id, DAMAGE.warn);
         useStore.getState().setDemo({ step: 2 });
         setResult(t("demo.s2.result", { score: sc }));
         return;
       }
       if (step === 2) {
-        st.setWear(id, WEAR.bad);
-        const sc = await settle(id);
+        const sc = await inject(id, DAMAGE.bad);
         useStore.getState().setDemo({ step: 3, scores: { ...useStore.getState().demo.scores, peak: sc } });
         setResult(t("demo.s3.result", { score: sc }));
         return;
@@ -117,7 +129,7 @@ export function DemoPanel() {
   if (!demo.open || !machine) return null;
 
   const sc = demo.scores;
-  const needsWriter = !writer && step >= 4 && step <= 5;
+  const needsWriter = !writer && (step <= 2 || step === 4 || step === 5);
   const key = (k: string) => `demo.s${step}.${k}` as Key;
 
   return (

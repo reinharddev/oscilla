@@ -9,30 +9,28 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 
 ## What it does
 
-- **Machine health view.** Every monitored machine in one table, worst first: status, score, estimated remaining life and next service. Selecting a machine shows the evidence, a per-machine journal and the Copilot. The KPI, zone and order panels are simulated filler and are labelled as such.
-- **Machine health.** Per machine: health score, remaining-life estimate, the vibration features that moved away from baseline, and a per-machine service journal.
+- **Machine health view.** Every monitored machine in one table, worst first: status, score, estimated remaining life and next service. Selecting a machine shows the evidence behind the score, companion channels, a per-machine journal and the Copilot.
+- **Maintenance overview.** Machines monitored, machines needing attention, average score, open and overdue work orders, work completed in 30 days, and how often technicians confirmed the AI's diagnosis. All computed from the database.
 - **Maintenance Copilot.** Explains the likely cause from signal evidence, manual excerpts and the journal. It cites its sources, states a qualitative confidence, and always asks for human review when a machine is critical.
 - **Question-answer agent.** Answers fleet questions by calling typed tools (health, schedule, journal, work orders). It can only propose changes; a person confirms them.
 - **Work orders and feedback.** A Copilot recommendation becomes a work order with the AI diagnosis attached; the technician later marks the diagnosis correct or incorrect.
 - **Multiple warehouses, four roles.** `admin`, `manager`, `technician`, `viewer`, enforced in the database (row-level security), not only in the UI.
 - **English and Indonesian UI**, switchable at any time.
-- **Guided demo.** The "Demo" button walks one machine from healthy to worn to repaired in seven steps.
+- **Guided demo.** The "Demo" button walks one machine from healthy to worn to repaired in seven steps (dummy-sensor mode only).
 
-## Architecture
+## How data gets in
+
+Readings reach the system the way they would in production, and the screens only read what is stored:
 
 ```
-Browser ── Next.js 16 (app + API routes) ──┬── Supabase (Postgres + Auth, RLS)
-                                           ├── Health service (FastAPI): features + scoring
-                                           └── LLM endpoint (OpenAI-compatible, vLLM on AMD)
+gateway / sensor ──POST /api/ingest──► score against the machine's baseline ──► health_snapshots ──► UI, Copilot, agent
+dummy sensors (SIM_ENABLED=true) ────────────────┘   (same scoring and storage path)
 ```
 
-| Part | Where | Notes |
-|---|---|---|
-| Web app | `app/`, `components/`, `lib/` | Next.js 16, React 19, Tailwind v4, zustand |
-| Health service | `health-service/` | Python 3.12, NumPy/SciPy, FastAPI. Stateless; optional `X-API-Key` |
-| Copilot | `lib/copilot/`, `app/api/copilot/` | BM25 retrieval over `knowledge/manuals.json`, prompt, guardrails, template fallback |
-| Agent | `lib/agent/`, `app/api/agent/` | Tool registry (zod schemas), tool-calling loop, rule-based planner when no LLM |
-| Database | `supabase/` | One migration, seed data, per-warehouse layouts as JSON |
+- **Real gateways** send one window of raw vibration samples per machine to `POST /api/ingest` (header `x-ingest-key`). A machine's healthy baseline is learned from 5-200 healthy windows sent to `POST /api/ingest/baseline` and stored in the database, so the health service holds no state.
+- **Dummy sensors** are the only difference in this deployment. A simulator on the server produces vibration windows at each machine's current damage level, with slow wear over time, and pushes them through the same scoring and storage. A finished work order resets the machine to a healthy level, as a repair would. `npm run seed:sim` creates 30 days of history through the real pipeline.
+- **Trend.** Remaining life comes from the slope of stored scores, not from a stored guess; flat or improving trends show no estimate.
+- Set `SIM_ENABLED=false` when real gateways are connected.
 
 ### How the AI is kept honest
 
@@ -73,8 +71,8 @@ health-service/.venv/bin/pip install -r health-service/requirements.txt
 
 # once per Supabase project
 supabase link --project-ref <ref> && supabase db push
-node --env-file=.env.local scripts/seed-layouts.mjs
 node --env-file=.env.local scripts/seed-demo-users.mjs      # needs SUPABASE_SECRET_KEY and DEMO_PASSWORD
+npm run seed:sim                  # dummy-sensor state and 30 days of history (health service must be running)
 
 npm run dev:health                # terminal 1, port 8100
 npm run dev                       # terminal 2, port 3000
@@ -105,13 +103,15 @@ docker compose --profile mock up  # additionally a mock LLM on :8000 (set LLM_BA
 | `HEALTH_SERVICE_KEY` | web, health service | Optional shared secret (`HEALTH_API_KEY` on the service) |
 | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | web | OpenAI-compatible endpoint. Empty means template and rule-based mode |
 | `DEMO_PASSWORD` | scripts | Password for the seeded demo accounts |
+| `SIM_ENABLED`, `SIM_TICK_MS` | web | Dummy sensors on or off (default on) and how often each machine reports (default 30 s) |
+| `INGEST_API_KEY` | web | Shared secret for gateways calling `/api/ingest`; empty disables ingest |
 
 Never commit `.env` or `.env.local`; both are git-ignored.
 
 ## Tests
 
 ```bash
-npm test                # health service (pytest), RLS policies (PGlite), layouts, Copilot, agent, i18n
+npm test                # health service (pytest), RLS policies (PGlite), Copilot, agent, ingest helpers, i18n
 npm run test:remote     # isolation checks against the real Supabase project (needs .env.local)
 npx tsc --noEmit
 ```
@@ -147,6 +147,9 @@ How to read this honestly:
 
 - The live demo telemetry is synthetic. The scoring has been checked on CWRU recordings (see above) but not on field data; the IMS run-to-failure dataset is the planned check for remaining-life estimates.
 - Manuals are synthetic samples written for this demo.
-- Health snapshots are written only while someone has the app open and visible. A production deployment needs a proper ingest service.
-- Baselines in the health service are held in memory.
-- No CMMS or ERP integration, no real sensor ingest API yet.
+- Dummy sensors report when someone is using the app or asking the Copilot (a serverless host has no background process). Real gateways report on their own through `/api/ingest`.
+- The ingest key is one shared secret per deployment; per-gateway keys and rate limiting are not built.
+- Raw windows are scored and discarded; only features, score and evidence are stored.
+- The companion channels (velocity, temperature, current) are dummy values next to the scored vibration window and do not feed the score.
+- Work orders are internal. There is no CMMS or ERP integration yet.
+- The KPI-style numbers shown are computed from stored work orders and readings; the sample data set is small.

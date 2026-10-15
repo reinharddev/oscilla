@@ -5,6 +5,7 @@ import { supabaseBackend } from "@/lib/agent/backend-supabase";
 import { getLang } from "@/lib/i18n/server";
 import type { ManualChunk } from "@/lib/copilot/types";
 import { createClient } from "@/lib/supabase/server";
+import { freshenSimulated } from "@/lib/server/fleet-health";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
   const selected = typeof body.selectedAssetId === "string" && UUID.test(body.selectedAssetId) ? body.selectedAssetId : null;
 
   const lang = await getLang();
+  await freshenSimulated(supabase, {});
   const llm = llmConfig();
   const backend = supabaseBackend(supabase, user.id, manuals as ManualChunk[], llm, lang);
   const result = await runAgent({ question, history, backend, llm, selectedAssetId: selected, lang });

@@ -30,6 +30,9 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-}
       LLM_MAX_RPM: ${LLM_MAX_RPM:-15}
+      SIM_ENABLED: ${SIM_ENABLED:-true}
+      SIM_TICK_MS: ${SIM_TICK_MS:-30000}
+      INGEST_API_KEY: ${INGEST_API_KEY:-}
     depends_on:
       health: { condition: service_healthy }
     ports: ["3000:3000"]

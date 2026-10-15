@@ -71,3 +71,16 @@ def generate_vibration(
                 x[i:end] += amp * rng.uniform(0.8, 1.2) * kernel[: end - i]
             k += 1
     return x
+
+
+def aux_channels(severity: float, rng: np.random.Generator) -> dict[str, float]:
+    """Dummy companion channels a real gateway would report next to the vibration window.
+
+    Velocity RMS (mm/s), motor temperature (deg C) and motor current (A) rise with bearing wear.
+    They are not used for scoring; they are shown next to it.
+    """
+    return {
+        "vibration_mm_s": round(2.0 + 5.0 * severity + rng.normal(0, 0.12), 3),
+        "temperature_c": round(52.0 + 8.0 * severity + rng.normal(0, 0.6), 2),
+        "current_a": round(8.0 + 2.0 * severity + rng.normal(0, 0.1), 3),
+    }
