@@ -23,6 +23,17 @@ Built for the AMD Developer Hackathon: ACT III, track **Intelligent Industry** (
 - **English and Indonesian UI**, switchable at any time.
 - **Guided demo.** The "Demo" button walks one machine from healthy to worn to repaired in seven steps (dummy-sensor mode only).
 
+## Loading and request budget
+
+The dashboard is a client-rendered single-page app. `/app` is a thin shell that paints immediately; the browser then makes one call to `/api/bootstrap` and shows skeletons until it returns. Moving between screens and switching warehouse does not reload the page.
+
+Requests to the database are kept low on purpose:
+
+- The session token is verified locally against the project's signing keys (`getClaims`), so a request costs no call to the auth server.
+- The latest readings of every machine come from one RPC (`health_history`), not one query per machine.
+- The dummy sensors claim their due readings in one statement (`claim_sim_ticks`), read all baselines in one query and insert all readings in one request: three requests per round, however many machines are due.
+- The browser refreshes every 30 s while the tab is visible and catches up when it becomes visible again.
+
 ## How data gets in
 
 Readings reach the system the way they would in production, and the screens only read what is stored:

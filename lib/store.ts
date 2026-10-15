@@ -95,6 +95,10 @@ interface State {
   warehouses: { id: string; name: string }[];
   assetMeta: Record<string, { org_id: string; warehouse_id: string }>;
   names: Record<string, string>;
+  /** Single-page app loading state: the shell paints first, data follows. */
+  boot: "loading" | "ready" | "none" | "error";
+  bootName: string;
+  loadWorkspace: (warehouseId?: string) => Promise<void>;
   people: Person[];
   members: Member[];
   audit: AuditRow[];
@@ -176,6 +180,8 @@ export const useStore = create<State>((set, get) => ({
   warehouses: [],
   assetMeta: {},
   names: {},
+  boot: "loading",
+  bootName: "",
   people: [], members: [], audit: [], baselines: [], org: [],
   view: "machines",
   feed: "idle",
@@ -208,6 +214,22 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setView: (view) => set({ view }),
+
+  loadWorkspace: async (warehouseId) => {
+    set({ boot: "loading" });
+    try {
+      const res = await fetch(`/api/bootstrap${warehouseId ? `?warehouse=${warehouseId}` : ""}`, { cache: "no-store" });
+      if (res.status === 401 || res.redirected) { window.location.href = "/login"; return; }
+      if (!res.ok) throw new Error(String(res.status));
+      const out = (await res.json()) as { kind: "ready"; data: HydrateInput } | { kind: "none"; name: string };
+      if (out.kind === "none") { set({ boot: "none", bootName: out.name }); return; }
+      get().hydrate(out.data);
+      set({ boot: "ready" });
+      if (typeof window !== "undefined") window.history.replaceState(null, "", `/app?w=${out.data.auth.warehouseId}`);
+    } catch {
+      set({ boot: "error" });
+    }
+  },
 
   assignWorkOrder: async (workOrderId, userId) => {
     const { error } = await createClient().from("work_orders").update({ assigned_to: userId }).eq("id", workOrderId);

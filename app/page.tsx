@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getT } from "@/lib/i18n/server";
 import type { Key } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/server/auth";
 import { REPO_URL, TEAM_MEMBERS, TEAM_NAME } from "@/lib/team";
 
 export const metadata = {
@@ -21,8 +22,7 @@ const STACK = ["Next.js 16", "React 19", "shadcn/ui", "Tailwind CSS", "Supabase 
 export default async function Landing() {
   const { lang, t } = await getT();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const signedIn = Boolean(user);
+  const signedIn = Boolean(await getAuthUser(supabase));
 
   const problems = [1, 2, 3] as const;
   const steps = [1, 2, 3, 4, 5] as const;

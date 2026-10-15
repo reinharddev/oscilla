@@ -36,7 +36,6 @@ export const en = {
   "nolayout.noAccess": "Your account has no warehouse access yet.",
 
   // ---- game shell
-  "ws.loading": "Loading warehouse…",
   "tab.machine": "Machine",
   "tab.ask": "Ask",
   "tab.fleet": "Fleet",
@@ -332,6 +331,8 @@ export const en = {
   "wo.none": "No open work orders.",
   "wo.scheduled": "Scheduled",
   "tab.sections": "Sections",
+  "ws.loadError": "The workspace could not be loaded.",
+  "ws.retry": "Try again",
   // ---- role views
   "view.organization": "Organization",
   "view.overview": "Overview",

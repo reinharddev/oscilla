@@ -21,40 +21,41 @@ export interface AssetHealth {
 const HIST = 40;
 
 interface Row {
-  taken_at: string; score: number | string; status: HealthStatus; evidence: Evidence[] | null; model_version: string | null;
-  source: "sensor" | "simulator"; aux: { vibration_mm_s?: number; temperature_c?: number; current_a?: number } | null;
+  asset_id: string; taken_at: string; score: number | string; status: HealthStatus; evidence: Evidence[] | null;
+  model_version: string | null; source: "sensor" | "simulator"; aux: { vibration_mm_s?: number; temperature_c?: number; current_a?: number } | null;
 }
 
-/** Latest reading and short history per machine, read under the caller's row-level security. */
+/** Latest reading and short history per machine, in one request, under the caller's row-level security. */
 export async function loadFleetHealth(supabase: SupabaseClient, assetIds: string[]): Promise<AssetHealth[]> {
-  const out = await Promise.all(
-    assetIds.map(async (id): Promise<AssetHealth | null> => {
-      const { data } = await supabase
-        .from("health_snapshots")
-        .select("taken_at, score, status, evidence, model_version, source, aux")
-        .eq("asset_id", id)
-        .order("taken_at", { ascending: false })
-        .limit(60);
-      const rows = ((data ?? []) as Row[]).reverse(); // oldest first
-      const last = rows[rows.length - 1];
-      if (!last) return null;
-      const tail = rows.slice(-HIST);
-      const num = (f: (r: Row) => number | undefined) => tail.map((r) => f(r)).filter((v): v is number => typeof v === "number");
-      return {
-        assetId: id,
-        score: Number(last.score),
-        status: last.status,
-        evidence: last.evidence ?? [],
-        modelVersion: last.model_version ?? "unknown",
-        source: last.source,
-        takenAt: last.taken_at,
-        vib: last.aux?.vibration_mm_s ?? null, temp: last.aux?.temperature_c ?? null, cur: last.aux?.current_a ?? null,
-        rulDays: estimateRulDays(rows.map((r) => ({ t: Date.parse(r.taken_at), score: Number(r.score) }))),
-        hist: { score: tail.map((r) => Number(r.score)), vib: num((r) => r.aux?.vibration_mm_s), temp: num((r) => r.aux?.temperature_c), cur: num((r) => r.aux?.current_a) },
-      };
-    }),
-  );
-  return out.filter((x): x is AssetHealth => x !== null);
+  if (assetIds.length === 0) return [];
+  const { data } = await supabase.rpc("health_history", { p_asset_ids: assetIds, p_limit: 60 });
+  const byAsset = new Map<string, Row[]>();
+  for (const r of (data ?? []) as Row[]) {
+    const list = byAsset.get(r.asset_id) ?? [];
+    list.push(r); // already oldest first
+    byAsset.set(r.asset_id, list);
+  }
+  const out: AssetHealth[] = [];
+  for (const id of assetIds) {
+    const rows = byAsset.get(id);
+    const last = rows?.[rows.length - 1];
+    if (!rows || !last) continue;
+    const tail = rows.slice(-HIST);
+    const num = (f: (r: Row) => number | undefined) => tail.map((r) => f(r)).filter((v): v is number => typeof v === "number");
+    out.push({
+      assetId: id,
+      score: Number(last.score),
+      status: last.status,
+      evidence: last.evidence ?? [],
+      modelVersion: last.model_version ?? "unknown",
+      source: last.source,
+      takenAt: last.taken_at,
+      vib: last.aux?.vibration_mm_s ?? null, temp: last.aux?.temperature_c ?? null, cur: last.aux?.current_a ?? null,
+      rulDays: estimateRulDays(rows.map((r) => ({ t: Date.parse(r.taken_at), score: Number(r.score) }))),
+      hist: { score: tail.map((r) => Number(r.score)), vib: num((r) => r.aux?.vibration_mm_s), temp: num((r) => r.aux?.temperature_c), cur: num((r) => r.aux?.current_a) },
+    });
+  }
+  return out;
 }
 
 /**

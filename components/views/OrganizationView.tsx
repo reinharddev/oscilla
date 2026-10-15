@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDateTime } from "@/lib/i18n";
@@ -13,7 +12,6 @@ import { Page, Panel } from "./shared";
 export function OrganizationView() {
   const t = useT();
   const lang = useLang();
-  const router = useRouter();
   const { org, auth, setView } = useStore();
   const total = (f: (w: (typeof org)[number]) => number) => org.reduce((n, w) => n + f(w), 0);
   const num = "text-right tabular-nums";
@@ -52,7 +50,7 @@ export function OrganizationView() {
                   {w.id === auth?.warehouseId ? (
                     <Button variant="secondary" size="sm" onClick={() => setView("overview")}>{t("org.current")}</Button>
                   ) : (
-                    <Button variant="outline" size="sm" onClick={() => router.push(`/app?w=${w.id}`)}>{t("org.switch")}</Button>
+                    <Button variant="outline" size="sm" onClick={() => void useStore.getState().loadWorkspace(w.id)}>{t("org.switch")}</Button>
                   )}
                 </TableCell>
               </TableRow>

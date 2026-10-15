@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { makeT } from "@/lib/i18n";
+import { makeT, type Lang } from "@/lib/i18n";
+import { Button } from "@/components/ui/button";
+import NoLayout from "./NoLayout";
+import { AppSkeleton } from "./AppSkeleton";
 import { useT } from "@/lib/i18n/use-t";
-import { useStore, type HydrateInput } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { TopBar } from "./hud/TopBar";
 import { RightColumn } from "./hud/Panels";
 import { FleetHealth } from "./hud/FleetHealth";
@@ -18,9 +21,10 @@ import { PeopleView } from "./views/PeopleView";
 import { AuditView } from "./views/AuditView";
 import { SourcesView } from "./views/SourcesView";
 
-export default function Workspace({ initial }: { initial: HydrateInput }) {
+export default function Workspace({ lang, initialWarehouse }: { lang: Lang; initialWarehouse?: string }) {
   const t = useT();
-  const ready = useStore((s) => s.auth?.warehouseId === initial.auth.warehouseId);
+  const boot = useStore((s) => s.boot);
+  const bootName = useStore((s) => s.bootName);
   const [tab, setTab] = useState<"machine" | "agent" | "fleet">("fleet");
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
@@ -33,8 +37,9 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
       const saved = localStorage.getItem("wt-theme");
       useStore.getState().setTheme(saved === "day" ? "day" : "night");
     } catch {}
-    useStore.getState().hydrate(initial);
-  }, [initial]);
+    useStore.setState({ locale: lang });
+    void useStore.getState().loadWorkspace(initialWarehouse);
+  }, [lang, initialWarehouse]);
 
   // Read the latest readings from the server. In dummy-sensor mode this also lets the sensors report
   // when they are due; with real sensors it is a plain read.
@@ -45,7 +50,7 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
       const s = useStore.getState();
       if (busy) { if (force) again = true; return; }
       if (!force && document.hidden) return;
-      if (s.machines.length === 0 || !s.auth) return;
+      if (s.boot !== "ready" || s.machines.length === 0 || !s.auth) return;
       busy = true;
       try {
         const t0 = performance.now();
@@ -61,13 +66,28 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
         if (again) { again = false; void run(true); }
       }
     };
-    const id = setInterval(() => void run(), 10_000);
+    // Matches the sensors' own report interval; a hidden tab does not poll and catches up on return.
+    const id = setInterval(() => void run(), 30_000);
+    const onVisible = () => {
+      const { feedAt } = useStore.getState();
+      if (!document.hidden && (!feedAt || Date.now() - feedAt > 30_000)) void run(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const unsub = useStore.subscribe((s, prev) => { if (s.pollNonce !== prev.pollNonce) void run(true); });
-    return () => { clearInterval(id); unsub(); };
-  }, [initial]);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVisible); unsub(); };
+  }, []);
 
-  if (!ready) {
-    return <main className="grid h-dvh w-screen place-items-center bg-background text-sm text-muted-foreground">{makeT(initial.locale)("ws.loading")}</main>;
+  if (boot === "loading") return <AppSkeleton />;
+  if (boot === "none") return <NoLayout name={bootName} warehouses={[]} reason="nolayout.noAccess" lang={lang} />;
+  if (boot === "error") {
+    return (
+      <main className="grid h-dvh place-items-center bg-background px-4">
+        <div className="flex max-w-sm flex-col items-start gap-3">
+          <p className="text-sm">{makeT(lang)("ws.loadError")}</p>
+          <Button onClick={() => void useStore.getState().loadWorkspace(initialWarehouse)}>{makeT(lang)("ws.retry")}</Button>
+        </div>
+      </main>
+    );
   }
 
   const allowed = role ? VIEWS[role] : [];

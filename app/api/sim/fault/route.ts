@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/server/auth";
 import { adminClient, simEnabled } from "@/lib/server/admin";
 import { loadFleetHealth } from "@/lib/server/fleet-health";
 import { severityAt, tickSimulator, type SimState } from "@/lib/server/sim";
@@ -15,7 +16,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function POST(request: Request) {
   if (!simEnabled()) return NextResponse.json({ error: "simulator is disabled" }, { status: 404 });
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   let body: { assetId?: unknown; severity?: unknown };

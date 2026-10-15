@@ -256,6 +256,33 @@ test("people list: managers and admins see who can be assigned; technicians and 
   assert.deepEqual(await names(U.outsider), []);
 });
 
+test("health_history returns recent readings per machine and respects row-level security", async () => {
+  await db.exec("set role service_role");
+  for (let i = 0; i < 5; i++) {
+    await db.query(
+      "insert into public.health_snapshots (asset_id, org_id, warehouse_id, score, status, taken_at) select id, org_id, warehouse_id, $2, 'healthy', now() - ($3 || ' minutes')::interval from public.assets where id = $1",
+      [assetA, 90 - i, String(i * 10)],
+    );
+  }
+  await db.exec("reset role");
+  const mine = await as(U.techA, "select score from public.health_history($1::uuid[], 3)", [[assetA]]);
+  assert.equal(mine.rows.length, 3, "limited to the last 3 readings");
+  const other = await as(U.techB, "select score from public.health_history($1::uuid[], 3)", [[assetA]]);
+  assert.equal(other.rows.length, 0, "another warehouse sees nothing");
+});
+
+test("claim_sim_ticks hands each due machine to one caller and is service-only", async () => {
+  await rejects(as(U.admin, "select * from public.claim_sim_ticks($1::uuid[], now())", [[assetA]]), /permission denied/);
+  await db.exec("set role service_role");
+  await db.query("update public.sim_state set last_tick_at = 'epoch' where asset_id = $1", [assetA]);
+  const first = await db.query("select * from public.claim_sim_ticks($1::uuid[], now() - interval '30 seconds')", [[assetA, assetB]]);
+  const second = await db.query("select * from public.claim_sim_ticks($1::uuid[], now() - interval '30 seconds')", [[assetA, assetB]]);
+  await db.exec("reset role");
+  assert.ok(first.rows.some((r) => r.asset_id === assetA));
+  assert.ok(first.rows.some((r) => r.asset_id === assetB), "a machine without state is created and claimed");
+  assert.equal(second.rows.length, 0, "nothing is due right after a claim");
+});
+
 test("integrity: a child row cannot point at a warehouse from another organization", async () => {
   await assert.rejects(
     db.query("insert into public.assets (org_id, warehouse_id, serial_number, name, type) values ($1, $2, 'BAD-1', 'x', 'agv')", [ORG, OTHER_WH]),

@@ -37,7 +37,6 @@ export const id: Record<Key, string> = {
   "nolayout.noAccess": "Akunmu belum memiliki akses ke gudang mana pun.",
 
   // ---- game shell
-  "ws.loading": "Memuat gudang…",
   "tab.machine": "Mesin",
   "tab.ask": "Tanya",
   "tab.fleet": "Armada",
@@ -333,6 +332,8 @@ export const id: Record<Key, string> = {
   "wo.none": "Tidak ada work order terbuka.",
   "wo.scheduled": "Terjadwal",
   "tab.sections": "Bagian",
+  "ws.loadError": "Ruang kerja tidak bisa dimuat.",
+  "ws.retry": "Coba lagi",
   // ---- role views
   "view.organization": "Organisasi",
   "view.overview": "Ringkasan",

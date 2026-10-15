@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { LogOut, Moon, Sun } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,7 +15,6 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
 
 export function TopBar() {
   const { demo, theme, auth, warehouses, setTheme } = useStore();
-  const router = useRouter();
   const t = useT();
   const role = (r: string) => t(`role.${r}` as Key);
 
@@ -24,7 +22,7 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center gap-3 border-b bg-card px-3 md:px-4">
       <span className="text-sm font-semibold tracking-tight">Oscilla</span>
       {warehouses.length > 1 ? (
-        <Select value={auth?.warehouseId} onValueChange={(id) => router.push(`/app?w=${id}`)}>
+        <Select value={auth?.warehouseId} onValueChange={(id) => void useStore.getState().loadWorkspace(id)}>
           <SelectTrigger size="sm" className="hidden max-w-[220px] sm:flex" aria-label={t("top.chooseWarehouse")}>
             <SelectValue />
           </SelectTrigger>

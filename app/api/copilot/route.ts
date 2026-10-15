@@ -5,6 +5,7 @@ import type { ManualChunk } from "@/lib/copilot/types";
 import { loadCopilotInputs } from "@/lib/copilot/load";
 import { getLang } from "@/lib/i18n/server";
 import { createClient } from "@/lib/supabase/server";
+import { getAuthUser } from "@/lib/server/auth";
 import { freshenSimulated } from "@/lib/server/fleet-health";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,7 +42,7 @@ function llmConfig() {
  */
 export async function POST(request: Request) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAuthUser(supabase);
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (limited(user.id)) return NextResponse.json({ error: "too many requests" }, { status: 429 });
 
