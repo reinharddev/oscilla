@@ -58,6 +58,7 @@ export default function Workspace({ lang, initialWarehouse }: { lang: Lang; init
         if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         useStore.getState().applyHealth(data.health, true);
+        if (Array.isArray(data.alerts)) useStore.getState().setAlerts(data.alerts);
         useStore.getState().recordAnalyze({ at: Date.now(), ms: Math.round(performance.now() - t0), machines: data.health.length, serviceUp: true });
       } catch {
         useStore.getState().applyHealth([], false);

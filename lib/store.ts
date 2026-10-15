@@ -5,6 +5,7 @@ import { clearCopilot } from "./copilot-cache";
 import { createClient } from "./supabase/client";
 import { MAX_SAMPLES, type AnalyzeSample, type LlmSample } from "./bench";
 import type { Health, HealthStatus, Machine, MachineType } from "./health";
+import type { AlertRow } from "./server/alerts";
 import type { AssetHealth } from "./server/fleet-health";
 import { statusKey } from "./health";
 import { fmtDateTime, LOCALE_COOKIE, renderMsg, makeT, translate, type Key, type Lang, type MsgParams } from "./i18n";
@@ -50,6 +51,7 @@ export interface HydrateInput {
   journal: { id: string; asset_id: string; author_id: string; kind: JournalEntry["kind"]; body: string; created_at: string }[];
   workOrders: WorkOrder[];
   health: AssetHealth[];
+  alerts: AlertRow[];
   /** Filled according to the role: people to assign, members, audit trail, baselines, org summary. */
   people: Person[];
   members: Member[];
@@ -92,6 +94,9 @@ interface State {
   health: Record<string, Health>;
   schedules: Record<string, Schedule>;
   workOrders: WorkOrder[];
+  alerts: AlertRow[];
+  setAlerts: (a: AlertRow[]) => void;
+  acknowledgeAlert: (id: string) => Promise<void>;
   journal: Record<string, JournalEntry[]>;
   auth: AuthInfo | null;
   machines: Machine[];
@@ -177,6 +182,7 @@ export const useStore = create<State>((set, get) => ({
   health: {},
   schedules: {},
   workOrders: [],
+  alerts: [],
   journal: {},
   auth: null,
   machines: [],
@@ -210,7 +216,7 @@ export const useStore = create<State>((set, get) => ({
       locale: init.locale, auth: init.auth, warehouses: init.warehouses, machines, assetMeta, journal, names: init.names,
       people: init.people, members: init.members, audit: init.audit, baselines: init.baselines, org: init.org,
       view: DEFAULT_VIEW[init.auth.role],
-      workOrders: init.workOrders, schedules: schedulesFrom(init.workOrders, init.assets.map((a) => a.id)),
+      alerts: init.alerts, workOrders: init.workOrders, schedules: schedulesFrom(init.workOrders, init.assets.map((a) => a.id)),
       health, feed: init.health.length ? "ok" : "idle", feedAt: init.health.length ? Date.now() : null,
       selected: null, events: [],
     });
@@ -291,6 +297,14 @@ export const useStore = create<State>((set, get) => ({
     clearCopilot();
     // Put the machine back where it was unless the demo already repaired it.
     if (demo.targetId && demo.restore !== undefined && demo.restore !== null && demo.step < 6) await get().setSimulated(demo.targetId, demo.restore);
+  },
+
+  setAlerts: (alerts) => set({ alerts }),
+  acknowledgeAlert: async (id) => {
+    const prev = get().alerts;
+    set({ alerts: prev.map((a) => (a.id === id ? { ...a, status: "acknowledged" as const, acknowledged_at: new Date().toISOString() } : a)) });
+    const { error } = await createClient().rpc("acknowledge_alert", { p_alert: id });
+    if (error) { set({ alerts: prev }); get().log("warn", "log.ackFail"); }
   },
 
   applyHealth: (list, ok) =>

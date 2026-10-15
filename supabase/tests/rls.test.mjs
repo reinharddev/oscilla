@@ -317,3 +317,35 @@ test("assistant chat history is private to its author", async () => {
   await as(U.managerA, "delete from public.agent_messages");
   assert.equal((await as(U.techA, "select id from public.agent_messages")).rows.length, 1);
 });
+
+test("alerts: raised and escalated by readings, closed when healthy, visible only to the warehouse, acknowledged by writers", async () => {
+  await db.exec("set role service_role");
+  const snap = (status, score) => db.query(
+    "insert into public.health_snapshots (asset_id, org_id, warehouse_id, score, status, evidence) values ($1, $2, $3, $4, $5, '[{\"label\":\"Bearing energy\"}]'::jsonb)",
+    [assetA, ORG, WH_A, score, status]);
+  await db.query("delete from public.alerts where asset_id = $1", [assetA]);
+  await snap("healthy", 95);
+  assert.equal((await db.query("select count(*)::int n from public.alerts where asset_id = $1", [assetA])).rows[0].n, 0);
+  await snap("attention", 60);
+  await snap("attention", 58);
+  let rows = (await db.query("select severity, status, headline from public.alerts where asset_id = $1 and status <> 'resolved'", [assetA])).rows;
+  assert.deepEqual(rows, [{ severity: "attention", status: "open", headline: "Bearing energy" }]);
+  await db.exec("reset role");
+
+  // Someone who can write acknowledges; a viewer and a technician of another warehouse cannot, and cannot even see it.
+  const id = (await as(U.techA, "select id from public.alerts where asset_id = $1", [assetA])).rows[0].id;
+  await rejects(as(U.viewerA, "select public.acknowledge_alert($1)", [id]), /not_allowed/);
+  await rejects(as(U.techB, "select public.acknowledge_alert($1)", [id]), /not_allowed/);
+  assert.equal((await as(U.techB, "select id from public.alerts where asset_id = $1", [assetA])).rows.length, 0);
+  await as(U.techA, "select public.acknowledge_alert($1)", [id]);
+  assert.equal((await as(U.viewerA, "select status from public.alerts where id = $1", [id])).rows[0].status, "acknowledged");
+
+  // Escalation re-opens it; recovery closes it.
+  await db.exec("set role service_role");
+  await snap("critical", 30);
+  rows = (await db.query("select severity, status from public.alerts where asset_id = $1 and status <> 'resolved'", [assetA])).rows;
+  assert.deepEqual(rows, [{ severity: "critical", status: "open" }]);
+  await snap("healthy", 96);
+  assert.equal((await db.query("select count(*)::int n from public.alerts where asset_id = $1 and status <> 'resolved'", [assetA])).rows[0].n, 0);
+  await db.exec("reset role");
+});

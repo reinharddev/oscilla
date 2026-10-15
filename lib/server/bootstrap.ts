@@ -3,6 +3,7 @@ import { makeT, type Lang } from "../i18n";
 import type { HydrateInput, Role } from "../store";
 import type { AuthUser } from "./auth";
 import { freshenSimulated, loadFleetHealth } from "./fleet-health";
+import { loadAlerts } from "./alerts";
 import { loadRoleData } from "./role-data";
 
 const RANK: Record<Role, number> = { viewer: 0, technician: 1, manager: 2, admin: 3 };
@@ -39,7 +40,8 @@ export async function loadBootstrap(supabase: SupabaseClient, user: AuthUser, la
     supabase.from("work_orders").select("id, asset_id, status, summary, due_at, started_at, completed_at, created_at, diagnosis_feedback, assigned_to, ai_diagnosis").eq("warehouse_id", warehouse.id),
   ]);
   await fresh;
-  const [health, extra] = await Promise.all([
+  const [alerts, health, extra] = await Promise.all([
+    loadAlerts(supabase, warehouse.id as string),
     loadFleetHealth(supabase, (assets.data ?? []).map((a) => a.id as string)),
     loadRoleData(supabase, role, warehouse, names, all.map((x) => ({ id: x.id as string, name: x.name as string }))),
   ]);
@@ -55,6 +57,7 @@ export async function loadBootstrap(supabase: SupabaseClient, user: AuthUser, la
       journal: (journal.data ?? []) as HydrateInput["journal"],
       workOrders: (orders.data ?? []).map(({ ai_diagnosis, ...w }) => ({ ...w, ai: ai_diagnosis != null })) as HydrateInput["workOrders"],
       health,
+      alerts,
       ...extra,
     },
   };

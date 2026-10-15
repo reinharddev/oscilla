@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type Key } from "@/lib/i18n";
+import { AlertInbox } from "./AlertInbox";
 import { useT } from "@/lib/i18n/use-t";
 import { canWrite, useStore } from "@/lib/store";
 
@@ -46,6 +47,7 @@ export function TopBar() {
             {t("top.demo")}
           </Button>
         )}
+        <AlertInbox />
         <Button
           variant="ghost"
           size="icon-sm"
