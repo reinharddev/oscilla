@@ -13,6 +13,9 @@ export const id: Record<Key, string> = {
   "role.viewer": "Pemantau",
 
   // ---- login
+  "login.back": "Kembali ke beranda",
+  "login.previewTitle": "Armada sekilas",
+  "login.previewNote": "Pratinjau dengan data fiktif",
   "login.email": "Email",
   "login.password": "Kata sandi",
   "login.submit": "Masuk",

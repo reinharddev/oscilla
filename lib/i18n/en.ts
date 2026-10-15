@@ -12,6 +12,9 @@ export const en = {
   "role.viewer": "Viewer",
 
   // ---- login
+  "login.back": "Back to home",
+  "login.previewTitle": "Fleet at a glance",
+  "login.previewNote": "Preview with fictional data",
   "login.email": "Email",
   "login.password": "Password",
   "login.submit": "Sign in",
