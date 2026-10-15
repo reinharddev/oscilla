@@ -177,8 +177,28 @@ export default async function Landing() {
           <p className="mt-4 text-base">{TEAM_NAME}</p>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">{t("land.team.body")}</p>
           {TEAM_MEMBERS.length > 0 && (
-            <ul className="mt-4 flex flex-col gap-1 text-sm">
-              {TEAM_MEMBERS.map((m) => <li key={m.name}><span className="font-medium">{m.name}</span><span className="text-muted-foreground"> · {m.role}</span></li>)}
+            <ul className="mt-6 grid gap-4 sm:grid-cols-3">
+              {TEAM_MEMBERS.map((m) => {
+                const links = [["Website", m.website], ["LinkedIn", m.linkedin], ["GitHub", m.github]].filter(([, href]) => href);
+                return (
+                  <li key={m.name}>
+                    <Card size="sm" className="h-full">
+                      <CardHeader><CardTitle>{m.name}</CardTitle></CardHeader>
+                      <CardContent>
+                        {links.length > 0 && (
+                          <ul className="flex flex-col gap-1 text-sm">
+                            {links.map(([label, href]) => (
+                              <li key={label}>
+                                <a href={href} target="_blank" rel="noopener noreferrer" className="text-muted-foreground underline underline-offset-4 hover:text-foreground">{label}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
