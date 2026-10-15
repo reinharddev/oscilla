@@ -42,7 +42,7 @@ export function TasksView() {
           <li key={w.id}>
             {i > 0 && <Separator />}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
                 <Button variant="link" className="h-auto p-0 text-sm font-medium text-foreground" onClick={() => open(m)}>{m.label}</Button>
                 <p className="text-sm text-muted-foreground">{w.summary}</p>
                 <p className={cn("mt-0.5 text-xs", late(w) ? "font-medium text-destructive" : "text-muted-foreground")}>
