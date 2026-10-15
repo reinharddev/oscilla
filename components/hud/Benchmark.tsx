@@ -4,7 +4,9 @@ import { useState } from "react";
 import { summarizeAnalyze, summarizeLlm, toMarkdown } from "@/lib/bench";
 import { useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
-import { Section } from "./ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const na = "–";
 const ms = (v?: number) => (v === undefined ? na : v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
@@ -31,49 +33,53 @@ export function Benchmark() {
   }
 
   return (
-    <Section title={t("bench.title")} aside={last ? `${last.model}${endpoint ? ` · ${endpoint}` : ""}` : t("bench.noModel")}>
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-ink/45">
-            <th className="pb-1 font-normal">{t("bench.feature")}</th>
-            <th className="pb-1 text-right font-normal">{t("bench.calls")}</th>
-            <th className="pb-1 text-right font-normal">p50</th>
-            <th className="pb-1 text-right font-normal">p95</th>
-            <th className="pb-1 text-right font-normal">{t("bench.tps")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-rule">
-          {rows.map(({ src, s }) => (
-            <tr key={src}>
-              <td className="py-1.5">{t(`bench.${src}`)}</td>
-              <td className="py-1.5 text-right">{s.n}</td>
-              <td className="py-1.5 text-right">{ms(s.p50)}</td>
-              <td className="py-1.5 text-right">{ms(s.p95)}</td>
-              <td className="py-1.5 text-right">{s.tokensPerSecP50 === undefined ? na : s.tokensPerSecP50.toFixed(1)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="px-4 pb-4">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>{t("bench.title")}</CardTitle>
+          <CardDescription>{last ? `${last.model}${endpoint ? ` · ${endpoint}` : ""}` : t("bench.noModel")}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-0">{t("bench.feature")}</TableHead>
+                <TableHead className="text-right">{t("bench.calls")}</TableHead>
+                <TableHead className="text-right">p50</TableHead>
+                <TableHead className="text-right">p95</TableHead>
+                <TableHead className="pr-0 text-right">{t("bench.tps")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(({ src, s }) => (
+                <TableRow key={src}>
+                  <TableCell className="pl-0">{t(`bench.${src}`)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{s.n}</TableCell>
+                  <TableCell className="text-right tabular-nums">{ms(s.p50)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{ms(s.p95)}</TableCell>
+                  <TableCell className="pr-0 text-right tabular-nums">{s.tokensPerSecP50 === undefined ? na : s.tokensPerSecP50.toFixed(1)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-        <dt className="text-ink/55">{t("bench.fallbacks")}</dt>
-        <dd className="text-right">{rows.reduce((n, r) => n + r.s.fallbacks, 0)}</dd>
-        <dt className="text-ink/55">{t("bench.cached")}</dt>
-        <dd className="text-right">{rows.reduce((n, r) => n + r.s.cached, 0)}</dd>
-        <dt className="text-ink/55">{t("bench.analysis")}</dt>
-        <dd className="text-right">{a.n === 0 ? na : `${ms(a.p50)} · ${a.n}×`}</dd>
-      </dl>
+          <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
+            <dt className="text-muted-foreground">{t("bench.fallbacks")}</dt>
+            <dd className="text-right tabular-nums">{rows.reduce((n, r) => n + r.s.fallbacks, 0)}</dd>
+            <dt className="text-muted-foreground">{t("bench.cached")}</dt>
+            <dd className="text-right tabular-nums">{rows.reduce((n, r) => n + r.s.cached, 0)}</dd>
+            <dt className="text-muted-foreground">{t("bench.analysis")}</dt>
+            <dd className="text-right tabular-nums">{a.n === 0 ? na : `${ms(a.p50)} · ${a.n}×`}</dd>
+          </dl>
 
-      <p className="mt-3 text-[11px] leading-snug text-ink/50">{empty ? t("bench.empty") : t("bench.note")}</p>
+          <p className="text-xs leading-snug text-muted-foreground">{empty ? t("bench.empty") : t("bench.note")}</p>
 
-      <div className="mt-3 flex gap-2">
-        <button onClick={copy} disabled={empty} className="h-7 rounded-ui border border-rule px-2.5 text-xs transition-colors duration-150 hover:bg-ink/5 disabled:opacity-40">
-          {copied ? t("bench.copied") : t("bench.copy")}
-        </button>
-        <button onClick={clear} disabled={empty && analyze.length === 0} className="h-7 rounded-ui border border-rule px-2.5 text-xs text-ink/60 transition-colors duration-150 hover:bg-ink/5 disabled:opacity-40">
-          {t("bench.clear")}
-        </button>
-      </div>
-    </Section>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={copy} disabled={empty}>{copied ? t("bench.copied") : t("bench.copy")}</Button>
+            <Button variant="ghost" size="sm" onClick={clear} disabled={empty && analyze.length === 0}>{t("bench.clear")}</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

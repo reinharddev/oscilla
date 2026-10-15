@@ -2,11 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import type { AgentResult, Proposal } from "@/lib/agent/types";
 import { fmtDate, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { canWrite, useStore } from "@/lib/store";
-import { Section } from "./ui";
 
 type Reply = AgentResult & { llmConfigured: boolean };
 type Msg = { role: "user"; content: string } | { role: "assistant"; content: string; reply?: Reply };
@@ -17,35 +24,38 @@ function ProposalCard({ p, question }: { p: Proposal; question: string }) {
   const auth = useStore((s) => s.auth);
   const scheduleMaintenance = useStore((s) => s.scheduleMaintenance);
   const [state, setState] = useState<"open" | "busy" | "done" | "failed" | "dismissed">("open");
-  if (state === "dismissed") return <p className="text-xs text-ink/45">{t("agent.dismissed")}</p>;
+  if (state === "dismissed") return <p className="text-xs text-muted-foreground">{t("agent.dismissed")}</p>;
   return (
-    <div className="rounded-ui border border-rule p-3 text-xs">
-      <div className="font-semibold">{t("agent.proposal", { name: p.assetName })}</div>
-      <p className="mt-1 text-ink/75">{p.summary}</p>
-      <p className="mt-1 text-ink/55">{t(`urgency.${p.urgency}` as Key)} · {t("agent.due", { date: fmtDate(p.dueAt, lang) })}</p>
-      {state === "done" ? (
-        <p className="mt-2 text-ok">{t("agent.created")}</p>
-      ) : (
-        <div className="mt-2 flex gap-2">
-          {canWrite(auth) && (
-            <button
-              disabled={state === "busy"}
-              onClick={async () => {
-                setState("busy");
-                const due = Date.parse(p.dueAt);
-                await scheduleMaintenance(p.assetId, due, { summary: p.summary, aiDiagnosis: { source: "agent", proposalId: p.id, urgency: p.urgency, question, at: new Date().toISOString() } });
-                setState(useStore.getState().schedules[p.assetId]?.due === due ? "done" : "failed");
-              }}
-              className="h-7 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-50"
-            >
-              {state === "busy" ? t("agent.creating") : t("agent.confirm")}
-            </button>
-          )}
-          <button onClick={() => setState("dismissed")} className="h-7 rounded-ui border border-rule px-3 text-xs transition-colors duration-150 hover:bg-ink/5">{t("agent.dismiss")}</button>
-        </div>
-      )}
-      {state === "failed" && <p role="alert" className="mt-2 text-bad">{t("agent.createFailed")}</p>}
-    </div>
+    <Alert>
+      <AlertTitle>{t("agent.proposal", { name: p.assetName })}</AlertTitle>
+      <AlertDescription>
+        <p className="text-foreground">{p.summary}</p>
+        <p className="mt-1 text-xs">{t(`urgency.${p.urgency}` as Key)} · {t("agent.due", { date: fmtDate(p.dueAt, lang) })}</p>
+        {state === "done" ? (
+          <p className="mt-2 text-sm font-medium text-success">{t("agent.created")}</p>
+        ) : (
+          <div className="mt-3 flex gap-2">
+            {canWrite(auth) && (
+              <Button
+                size="sm"
+                disabled={state === "busy"}
+                onClick={async () => {
+                  setState("busy");
+                  const due = Date.parse(p.dueAt);
+                  await scheduleMaintenance(p.assetId, due, { summary: p.summary, aiDiagnosis: { source: "agent", proposalId: p.id, urgency: p.urgency, question, at: new Date().toISOString() } });
+                  setState(useStore.getState().schedules[p.assetId]?.due === due ? "done" : "failed");
+                }}
+              >
+                {state === "busy" ? <Spinner data-icon="inline-start" /> : null}
+                {state === "busy" ? t("agent.creating") : t("agent.confirm")}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => setState("dismissed")}>{t("agent.dismiss")}</Button>
+          </div>
+        )}
+        {state === "failed" && <p role="alert" className="mt-2 text-sm text-destructive">{t("agent.createFailed")}</p>}
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -53,38 +63,43 @@ function Assistant({ msg, question }: { msg: Extract<Msg, { role: "assistant" }>
   const t = useT();
   const r = msg.reply;
   return (
-    <div className="space-y-2">
-      <p className="whitespace-pre-line text-[13px] leading-relaxed">{msg.content}</p>
+    <div className="flex flex-col gap-2">
+      <p className="whitespace-pre-line text-sm leading-relaxed">{msg.content}</p>
       {r?.proposals.map((p) => <ProposalCard key={p.id} p={p} question={question} />)}
       {r && r.warnings.length > 0 && (
-        <ul className="list-disc space-y-0.5 pl-4 text-xs text-warn">{r.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+        <ul className="list-disc pl-4 text-xs text-warning">{r.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
       )}
       {r?.rejectedAnswer && (
-        <details className="text-xs text-ink/60">
-          <summary className="cursor-pointer text-ink/50">{t("agent.showRejected")}</summary>
-          <p className="mt-1 border-l-2 border-rule pl-3">{r.rejectedAnswer}</p>
-        </details>
+        <Collapsible>
+          <CollapsibleTrigger asChild><Button variant="link" size="xs" className="h-auto p-0 text-xs text-muted-foreground">{t("agent.showRejected")}</Button></CollapsibleTrigger>
+          <CollapsibleContent><p className="mt-1 border-l pl-3 text-xs text-muted-foreground">{r.rejectedAnswer}</p></CollapsibleContent>
+        </Collapsible>
       )}
       {r && r.steps.length > 0 && (
-        <details className="text-xs text-ink/60">
-          <summary className="cursor-pointer text-ink/50">{t("agent.toolsUsed", { n: r.steps.length })}</summary>
-          <ul className="mt-1 divide-y divide-rule border-y border-rule">
-            {r.steps.map((s, i) => (
-              <li key={i} className="py-1.5">
-                <span className="font-medium text-ink/80">{s.tool}</span>
-                <span className="text-ink/45"> {JSON.stringify(s.args)}</span>
-                <div className={s.ok ? "" : "text-warn"}>{s.summary}</div>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <Collapsible>
+          <CollapsibleTrigger asChild><Button variant="link" size="xs" className="h-auto p-0 text-xs text-muted-foreground">{t("agent.toolsUsed", { n: r.steps.length })}</Button></CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="mt-1 flex flex-col text-xs">
+              {r.steps.map((s, i) => (
+                <li key={i}>
+                  {i > 0 && <Separator />}
+                  <div className="py-1.5">
+                    <span className="font-medium">{s.tool}</span>
+                    <span className="text-muted-foreground"> {JSON.stringify(s.args)}</span>
+                    <div className={s.ok ? "text-muted-foreground" : "text-warning"}>{s.summary}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       )}
       {r && (
-        <div className="text-xs text-ink/45">
+        <p className="text-xs text-muted-foreground">
           {r.mode === "llm"
             ? `${r.model} · ${t("copilot.seconds", { n: (r.latencyMs / 1000).toFixed(1) })}${r.usage ? ` · ${t("copilot.tokens", { n: r.usage.promptTokens + r.usage.completionTokens })}` : ""}`
             : t("agent.simpleMode")}
-        </div>
+        </p>
       )}
     </div>
   );
@@ -128,47 +143,46 @@ export function AgentPanel() {
   const lastQuestion = (i: number) => [...msgs.slice(0, i)].reverse().find((m) => m.role === "user")?.content ?? "";
 
   return (
-    <Section title={t("agent.title")} aside={selectedId ? t("agent.context") : undefined}>
-      {msgs.length === 0 && (
-        <div className="mb-3">
-          <p className="text-xs text-ink/60">{t("agent.intro")}</p>
-          <ul className="mt-2 divide-y divide-rule border-y border-rule">
-            {suggestions.map((s) => (
-              <li key={s}>
-                <button onClick={() => ask(s)} className="w-full px-1 py-1.5 text-left text-xs text-ink/80 transition-colors duration-150 hover:bg-ink/5">{s}</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {msgs.length > 0 && (
-        <div className="scroll-thin mb-3 max-h-[380px] space-y-4 overflow-y-auto pr-1">
-          {msgs.map((m, i) => (
-            <div key={i}>
-              <div className="mb-0.5 text-xs text-ink/50">{m.role === "user" ? t("agent.you") : t("agent.assistant")}</div>
-              {m.role === "user" ? <p className="text-[13px]">{m.content}</p> : <Assistant msg={m} question={lastQuestion(i)} />}
+    <div className="px-4 pb-4">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>{t("agent.title")}</CardTitle>
+          {selectedId && <CardDescription>{t("agent.context")}</CardDescription>}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {msgs.length === 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-muted-foreground">{t("agent.intro")}</p>
+              <div className="flex flex-col items-stretch gap-1">
+                {suggestions.map((s) => (
+                  <Button key={s} variant="outline" size="sm" className="h-auto justify-start whitespace-normal py-1.5 text-left font-normal" onClick={() => void ask(s)}>{s}</Button>
+                ))}
+              </div>
             </div>
-          ))}
-          {busy && <p className="text-xs text-ink/50">{t("agent.working")}</p>}
-          <div ref={end} />
-        </div>
-      )}
-      {error && <p role="alert" className="mb-2 text-xs text-bad">{error}</p>}
+          )}
 
-      <form onSubmit={(e) => { e.preventDefault(); ask(input); }} className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          maxLength={500}
-          placeholder={t("agent.placeholder")}
-          aria-label={t("agent.input")}
-          className="h-8 min-w-0 flex-1 rounded-ui border border-rule bg-surface px-2.5 text-xs outline-none focus:border-accent"
-        />
-        <button disabled={busy || input.trim().length < 2} aria-label={t("agent.send")} className="grid h-8 w-8 place-items-center rounded-ui bg-accent text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-40">
-          <Send size={14} />
-        </button>
-      </form>
-    </Section>
+          {msgs.length > 0 && (
+            <ScrollArea className="max-h-[380px]">
+              <div className="flex flex-col gap-4 pr-3">
+                {msgs.map((m, i) => (
+                  <div key={i}>
+                    <div className="mb-0.5 text-xs text-muted-foreground">{m.role === "user" ? t("agent.you") : t("agent.assistant")}</div>
+                    {m.role === "user" ? <p className="text-sm">{m.content}</p> : <Assistant msg={m} question={lastQuestion(i)} />}
+                  </div>
+                ))}
+                {busy && <p className="flex items-center gap-2 text-xs text-muted-foreground"><Spinner />{t("agent.working")}</p>}
+                <div ref={end} />
+              </div>
+            </ScrollArea>
+          )}
+          {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+
+          <form onSubmit={(e) => { e.preventDefault(); void ask(input); }} className="flex gap-2">
+            <Input value={input} onChange={(e) => setInput(e.target.value)} maxLength={500} placeholder={t("agent.placeholder")} aria-label={t("agent.input")} />
+            <Button type="submit" size="icon" disabled={busy || input.trim().length < 2} aria-label={t("agent.send")}><Send /></Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -1,10 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useLang, useT } from "@/lib/i18n/use-t";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDateTime } from "@/lib/i18n";
+import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
-import { Page, Panel, td, th } from "./shared";
+import { cn } from "@/lib/utils";
+import { Page, Panel } from "./shared";
 
 /** Admin start screen: every warehouse of the organization side by side. */
 export function OrganizationView() {
@@ -13,61 +16,62 @@ export function OrganizationView() {
   const router = useRouter();
   const { org, auth, setView } = useStore();
   const total = (f: (w: (typeof org)[number]) => number) => org.reduce((n, w) => n + f(w), 0);
+  const num = "text-right tabular-nums";
 
   return (
     <Page title={t("org.title")} aside={auth?.orgName}>
-      <Panel>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-[13px]">
-            <thead className="border-b border-rule">
-              <tr>
-                <th className={th}>{t("org.warehouse")}</th>
-                <th className={`${th} text-right`}>{t("org.machines")}</th>
-                <th className={`${th} text-right`}>{t("org.critical")}</th>
-                <th className={`${th} text-right`}>{t("org.attention")}</th>
-                <th className={`${th} text-right`}>{t("org.healthy")}</th>
-                <th className={`${th} text-right`}>{t("org.avg")}</th>
-                <th className={`${th} text-right`}>{t("org.open")}</th>
-                <th className={`${th} text-right`}>{t("org.overdue")}</th>
-                <th className={th}>{t("org.last")}</th>
-                <th className={th} />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {org.map((w) => (
-                <tr key={w.id} className={w.id === auth?.warehouseId ? "bg-ink/5" : ""}>
-                  <td className={`${td} font-medium`}>{w.name}</td>
-                  <td className={`${td} text-right tabular-nums`}>{w.machines}</td>
-                  <td className={`${td} text-right tabular-nums ${w.critical ? "font-semibold text-bad" : "text-ink/50"}`}>{w.critical}</td>
-                  <td className={`${td} text-right tabular-nums ${w.attention ? "text-warn" : "text-ink/50"}`}>{w.attention}</td>
-                  <td className={`${td} text-right tabular-nums`}>{w.healthy}</td>
-                  <td className={`${td} text-right tabular-nums`}>{w.avgScore ?? "–"}</td>
-                  <td className={`${td} text-right tabular-nums`}>{w.openOrders}</td>
-                  <td className={`${td} text-right tabular-nums ${w.overdue ? "text-bad" : "text-ink/50"}`}>{w.overdue}</td>
-                  <td className={`${td} text-xs text-ink/60`}>{w.lastReadingAt ? fmtDateTime(Date.parse(w.lastReadingAt), lang) : "–"}</td>
-                  <td className={`${td} text-right`}>
-                    {w.id === auth?.warehouseId ? (
-                      <button onClick={() => setView("overview")} className="text-xs text-accent hover:underline">{t("org.current")}</button>
-                    ) : (
-                      <button onClick={() => router.push(`/?w=${w.id}`)} className="text-xs text-accent hover:underline">{t("org.switch")}</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              <tr className="border-t border-rule bg-ink/[0.03] font-semibold">
-                <td className={td}>Σ</td>
-                <td className={`${td} text-right tabular-nums`}>{total((w) => w.machines)}</td>
-                <td className={`${td} text-right tabular-nums`}>{total((w) => w.critical)}</td>
-                <td className={`${td} text-right tabular-nums`}>{total((w) => w.attention)}</td>
-                <td className={`${td} text-right tabular-nums`}>{total((w) => w.healthy)}</td>
-                <td className={td} />
-                <td className={`${td} text-right tabular-nums`}>{total((w) => w.openOrders)}</td>
-                <td className={`${td} text-right tabular-nums`}>{total((w) => w.overdue)}</td>
-                <td className={td} colSpan={2} />
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <Panel flush>
+        <Table className="min-w-[860px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-4">{t("org.warehouse")}</TableHead>
+              <TableHead className={num}>{t("org.machines")}</TableHead>
+              <TableHead className={num}>{t("org.critical")}</TableHead>
+              <TableHead className={num}>{t("org.attention")}</TableHead>
+              <TableHead className={num}>{t("org.healthy")}</TableHead>
+              <TableHead className={num}>{t("org.avg")}</TableHead>
+              <TableHead className={num}>{t("org.open")}</TableHead>
+              <TableHead className={num}>{t("org.overdue")}</TableHead>
+              <TableHead>{t("org.last")}</TableHead>
+              <TableHead className="pr-4" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {org.map((w) => (
+              <TableRow key={w.id} data-state={w.id === auth?.warehouseId ? "selected" : undefined}>
+                <TableCell className="pl-4 font-medium">{w.name}</TableCell>
+                <TableCell className={num}>{w.machines}</TableCell>
+                <TableCell className={cn(num, w.critical ? "font-semibold text-destructive" : "text-muted-foreground")}>{w.critical}</TableCell>
+                <TableCell className={cn(num, w.attention ? "font-medium text-warning" : "text-muted-foreground")}>{w.attention}</TableCell>
+                <TableCell className={num}>{w.healthy}</TableCell>
+                <TableCell className={num}>{w.avgScore ?? "–"}</TableCell>
+                <TableCell className={num}>{w.openOrders}</TableCell>
+                <TableCell className={cn(num, w.overdue ? "font-medium text-destructive" : "text-muted-foreground")}>{w.overdue}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{w.lastReadingAt ? fmtDateTime(Date.parse(w.lastReadingAt), lang) : "–"}</TableCell>
+                <TableCell className="pr-4 text-right">
+                  {w.id === auth?.warehouseId ? (
+                    <Button variant="secondary" size="sm" onClick={() => setView("overview")}>{t("org.current")}</Button>
+                  ) : (
+                    <Button variant="outline" size="sm" onClick={() => router.push(`/?w=${w.id}`)}>{t("org.switch")}</Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell className="pl-4">Σ</TableCell>
+              <TableCell className={num}>{total((w) => w.machines)}</TableCell>
+              <TableCell className={num}>{total((w) => w.critical)}</TableCell>
+              <TableCell className={num}>{total((w) => w.attention)}</TableCell>
+              <TableCell className={num}>{total((w) => w.healthy)}</TableCell>
+              <TableCell />
+              <TableCell className={num}>{total((w) => w.openOrders)}</TableCell>
+              <TableCell className={num}>{total((w) => w.overdue)}</TableCell>
+              <TableCell colSpan={2} />
+            </TableRow>
+          </TableFooter>
+        </Table>
       </Panel>
     </Page>
   );

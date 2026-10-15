@@ -6,13 +6,15 @@ export default async function LoginPage() {
   const { lang, t } = await getT();
   const demoEnabled = Boolean(process.env.DEMO_PASSWORD);
   return (
-    <main className="grid min-h-dvh place-items-center bg-canvas px-4 py-10">
-      <div className="w-full max-w-sm">
+    <main className="grid h-dvh place-items-start justify-center overflow-y-auto bg-background px-4 py-10 sm:place-items-center">
+      <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-xl font-semibold">Oscilla</h1>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Oscilla</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t("app.tagline")}</p>
+          </div>
           <LangLink current={lang} />
         </div>
-        <p className="mt-1 text-sm text-ink/60">{t("app.tagline")}</p>
         <LoginForm demoEnabled={demoEnabled} lang={lang} />
       </div>
     </main>

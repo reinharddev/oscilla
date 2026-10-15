@@ -1,13 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { StatusBadge, type StatusKind } from "@/components/status-badge";
 import { fmtDate, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { canAssignOthers } from "@/lib/roles";
 import { useStore } from "@/lib/store";
-import { Page, Panel, td, th, useOpenMachine } from "./shared";
+import { cn } from "@/lib/utils";
+import { Page, Panel, useOpenMachine } from "./shared";
 
 type Filter = "all" | "open" | "done";
+const NONE = "none";
+const ST: Record<string, StatusKind> = { scheduled: "maintenance", in_progress: "attention", done: "healthy", cancelled: "maintenance" };
 
 /** Every work order of the warehouse. Managers and admins assign people here. */
 export function OrdersView() {
@@ -25,53 +33,48 @@ export function OrdersView() {
 
   return (
     <Page title={t("orders.title")} aside={auth?.warehouseName}>
-      <div role="group" className="mb-3 inline-flex overflow-hidden rounded-ui border border-rule text-xs">
-        {(["open", "done", "all"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f} className={`border-l border-rule px-3 py-1.5 first:border-l-0 ${filter === f ? "bg-ink/10 font-semibold" : "text-ink/60 hover:bg-ink/5"}`}>
-            {t(`orders.${f}` as Key)}
-          </button>
-        ))}
-      </div>
-      <Panel>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-[13px]">
-            <thead className="border-b border-rule">
-              <tr>
-                <th className={th}>{t("orders.machine")}</th><th className={th}>{t("orders.summary")}</th><th className={th}>{t("orders.status")}</th>
-                <th className={th}>{t("orders.due")}</th><th className={th}>{t("orders.assignee")}</th><th className={th}>{t("orders.ai")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {rows.length === 0 && <tr><td colSpan={6} className="px-3 py-4 text-xs text-ink/50">{t("orders.empty")}</td></tr>}
-              {rows.map((w) => {
-                const m = machines.find((x) => x.id === w.asset_id);
-                const editable = lead && (w.status === "scheduled" || w.status === "in_progress");
-                return (
-                  <tr key={w.id}>
-                    <td className={td}><button onClick={() => open(m)} className="text-left font-medium hover:underline">{m?.label ?? "–"}</button></td>
-                    <td className={`${td} max-w-[280px] text-ink/70`}><span className="line-clamp-2">{w.summary}</span></td>
-                    <td className={td}>{t(`orders.st.${w.status}` as Key)}</td>
-                    <td className={`${td} tabular-nums ${w.status === "scheduled" && w.due_at && Date.parse(w.due_at) < Date.now() ? "text-bad" : ""}`}>{w.due_at ? fmtDate(Date.parse(w.due_at), lang, { day: "numeric", month: "short" }) : "–"}</td>
-                    <td className={td}>
-                      {editable ? (
-                        <select
-                          aria-label={t("orders.assignee")}
-                          value={w.assigned_to ?? ""}
-                          onChange={(e) => assignWorkOrder(w.id, e.target.value || null)}
-                          className="h-8 max-w-[170px] rounded-ui border border-rule bg-surface px-2 text-xs outline-none focus:border-accent"
-                        >
-                          <option value="">{t("orders.unassigned")}</option>
-                          {people.map((p) => <option key={p.user_id} value={p.user_id}>{p.full_name || p.user_id.slice(0, 8)}</option>)}
-                        </select>
-                      ) : assignee(w.assigned_to)}
-                    </td>
-                    <td className={td}>{w.diagnosis_feedback ? t(`orders.ai.${w.diagnosis_feedback}` as Key) : t("orders.ai.none")}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <ToggleGroup type="single" variant="outline" size="sm" value={filter} onValueChange={(v) => v && setFilter(v as Filter)} className="justify-start" spacing={0}>
+        {(["open", "done", "all"] as const).map((f) => <ToggleGroupItem key={f} value={f}>{t(`orders.${f}` as Key)}</ToggleGroupItem>)}
+      </ToggleGroup>
+      <Panel flush>
+        <Table className="min-w-[760px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-4">{t("orders.machine")}</TableHead><TableHead>{t("orders.summary")}</TableHead><TableHead>{t("orders.status")}</TableHead>
+              <TableHead>{t("orders.due")}</TableHead><TableHead>{t("orders.assignee")}</TableHead><TableHead className="pr-4">{t("orders.ai")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 && <TableRow><TableCell colSpan={6} className="py-6 text-center text-muted-foreground">{t("orders.empty")}</TableCell></TableRow>}
+            {rows.map((w) => {
+              const m = machines.find((x) => x.id === w.asset_id);
+              const editable = lead && (w.status === "scheduled" || w.status === "in_progress");
+              const late = w.status === "scheduled" && w.due_at && Date.parse(w.due_at) < Date.now();
+              return (
+                <TableRow key={w.id}>
+                  <TableCell className="pl-4"><Button variant="link" className="h-auto p-0 font-medium text-foreground" onClick={() => open(m)}>{m?.label ?? "–"}</Button></TableCell>
+                  <TableCell className="max-w-[280px] whitespace-normal text-muted-foreground"><span className="line-clamp-2">{w.summary}</span></TableCell>
+                  <TableCell><StatusBadge status={ST[w.status]}>{t(`orders.st.${w.status}` as Key)}</StatusBadge></TableCell>
+                  <TableCell className={cn("tabular-nums", late && "font-medium text-destructive")}>{w.due_at ? fmtDate(Date.parse(w.due_at), lang, { day: "numeric", month: "short" }) : "–"}</TableCell>
+                  <TableCell>
+                    {editable ? (
+                      <Select value={w.assigned_to ?? NONE} onValueChange={(v) => void assignWorkOrder(w.id, v === NONE ? null : v)}>
+                        <SelectTrigger size="sm" className="w-44" aria-label={t("orders.assignee")}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value={NONE}>{t("orders.unassigned")}</SelectItem>
+                            {people.map((p) => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name || p.user_id.slice(0, 8)}</SelectItem>)}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : assignee(w.assigned_to)}
+                  </TableCell>
+                  <TableCell className="pr-4">{w.diagnosis_feedback ? t(`orders.ai.${w.diagnosis_feedback}` as Key) : t("orders.ai.none")}</TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </Panel>
     </Page>
   );

@@ -1,12 +1,17 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Separator } from "@/components/ui/separator";
+import { StatusBadge } from "@/components/status-badge";
+import { scoreOf, statusKey } from "@/lib/health";
 import { fmtDate } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
-import { scoreOf, statusKey } from "@/lib/health";
 import { useStore, type WorkOrder } from "@/lib/store";
+import { cn } from "@/lib/utils";
 import { Page, Panel, useOpenMachine } from "./shared";
 
-const STATUS_CLASS = { healthy: "text-ok", attention: "text-warn", critical: "text-bad" } as const;
+const byDue = (a: WorkOrder, b: WorkOrder) => (a.due_at ? Date.parse(a.due_at) : Infinity) - (b.due_at ? Date.parse(b.due_at) : Infinity);
 
 /** The technician's start screen: what is assigned to me, what I can pick up, what to keep an eye on. */
 export function TasksView() {
@@ -25,56 +30,70 @@ export function TasksView() {
     .sort((a, b) => a.h.score - b.h.score)
     .slice(0, 5);
 
-  const machine = (w: WorkOrder) => machines.find((m) => m.id === w.asset_id);
   const due = (w: WorkOrder) => (w.due_at ? t("tasks.due", { date: fmtDate(Date.parse(w.due_at), lang, { day: "numeric", month: "short" }) }) : t("tasks.noDue"));
   const late = (w: WorkOrder) => w.status === "scheduled" && w.due_at && Date.parse(w.due_at) < Date.now();
 
-  const Row = ({ w, mineRow }: { w: WorkOrder; mineRow: boolean }) => {
-    const m = machine(w);
-    if (!m) return null;
-    return (
-      <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <button onClick={() => open(m)} className="text-left text-sm font-medium hover:underline">{m.label}</button>
-          <div className="text-xs text-ink/60">{w.summary}</div>
-          <div className={`mt-0.5 text-xs ${late(w) ? "text-bad" : "text-ink/45"}`}>{w.status === "in_progress" ? t("tasks.inProgress") : due(w)}</div>
-        </div>
-        <div className="flex gap-2">
-          {mineRow && w.status === "scheduled" && (
-            <button onClick={async () => { open(m); await startMaintenance(m.id); }} className="h-8 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas hover:opacity-90">{t("tasks.start")}</button>
-          )}
-          {mineRow ? (
-            <>
-              <button onClick={() => open(m)} className="h-8 rounded-ui border border-rule px-3 text-xs hover:bg-ink/5">{t("tasks.open")}</button>
-              {w.status === "scheduled" && <button onClick={() => assignWorkOrder(w.id, null)} className="h-8 rounded-ui border border-rule px-3 text-xs text-ink/60 hover:bg-ink/5">{t("tasks.release")}</button>}
-            </>
-          ) : (
-            <button onClick={() => me && assignWorkOrder(w.id, me)} className="h-8 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas hover:opacity-90">{t("tasks.take")}</button>
-          )}
-        </div>
-      </li>
-    );
-  };
+  const List = ({ items, mineRows }: { items: WorkOrder[]; mineRows: boolean }) => (
+    <ul className="flex flex-col">
+      {items.map((w, i) => {
+        const m = machines.find((x) => x.id === w.asset_id);
+        if (!m) return null;
+        return (
+          <li key={w.id}>
+            {i > 0 && <Separator />}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+              <div className="min-w-0 flex-1">
+                <Button variant="link" className="h-auto p-0 text-sm font-medium text-foreground" onClick={() => open(m)}>{m.label}</Button>
+                <p className="text-sm text-muted-foreground">{w.summary}</p>
+                <p className={cn("mt-0.5 text-xs", late(w) ? "font-medium text-destructive" : "text-muted-foreground")}>
+                  {w.status === "in_progress" ? t("tasks.inProgress") : due(w)}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {mineRows ? (
+                  <>
+                    {w.status === "scheduled" && <Button size="sm" onClick={async () => { open(m); await startMaintenance(m.id); }}>{t("tasks.start")}</Button>}
+                    <Button size="sm" variant="outline" onClick={() => open(m)}>{t("tasks.open")}</Button>
+                    {w.status === "scheduled" && <Button size="sm" variant="ghost" onClick={() => void assignWorkOrder(w.id, null)}>{t("tasks.release")}</Button>}
+                  </>
+                ) : (
+                  <Button size="sm" onClick={() => me && void assignWorkOrder(w.id, me)}>{t("tasks.take")}</Button>
+                )}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  const none = (text: string) => (
+    <Empty className="border border-dashed py-6"><EmptyHeader><EmptyDescription>{text}</EmptyDescription></EmptyHeader></Empty>
+  );
 
   return (
     <Page title={t("tasks.title")} aside={auth?.warehouseName}>
-      <Panel title={t("tasks.mine")} aside={String(mine.length)}>
-        {mine.length === 0 ? <p className="px-4 py-3 text-xs text-ink/50">{t("tasks.noneMine")}</p> : <ul className="divide-y divide-rule">{mine.map((w) => <Row key={w.id} w={w} mineRow />)}</ul>}
+      <Panel title={t("tasks.mine")} description={String(mine.length)}>
+        {mine.length === 0 ? none(t("tasks.noneMine")) : <List items={mine} mineRows />}
       </Panel>
-      <Panel title={t("tasks.unassigned")} aside={String(free.length)}>
-        {free.length === 0 ? <p className="px-4 py-3 text-xs text-ink/50">{t("tasks.noneUnassigned")}</p> : <ul className="divide-y divide-rule">{free.map((w) => <Row key={w.id} w={w} mineRow={false} />)}</ul>}
+      <Panel title={t("tasks.unassigned")} description={String(free.length)}>
+        {free.length === 0 ? none(t("tasks.noneUnassigned")) : <List items={free} mineRows={false} />}
       </Panel>
       <Panel title={t("tasks.watch")}>
         {watch.length === 0 ? (
-          <p className="px-4 py-3 text-xs text-ink/50">{t("tasks.watchNone")}</p>
+          none(t("tasks.watchNone"))
         ) : (
-          <ul className="divide-y divide-rule">
-            {watch.map(({ m, h }) => (
+          <ul className="flex flex-col">
+            {watch.map(({ m, h }, i) => (
               <li key={m.id}>
-                <button onClick={() => open(m)} className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-ink/5">
-                  <span>{m.label}</span>
-                  <span className={`text-xs ${STATUS_CLASS[h.status]}`}>{t(statusKey(h.status))} · {scoreOf(h)}</span>
-                </button>
+                {i > 0 && <Separator />}
+                <Button variant="ghost" className="h-auto w-full justify-between rounded-none px-1 py-2.5 font-normal" onClick={() => open(m)}>
+                  <span className="font-medium">{m.label}</span>
+                  <span className="flex items-center gap-2">
+                    <StatusBadge status={h.status}>{t(statusKey(h.status))}</StatusBadge>
+                    <span className="w-8 text-right font-semibold tabular-nums">{scoreOf(h)}</span>
+                  </span>
+                </Button>
               </li>
             ))}
           </ul>
@@ -83,5 +102,3 @@ export function TasksView() {
     </Page>
   );
 }
-
-const byDue = (a: WorkOrder, b: WorkOrder) => (a.due_at ? Date.parse(a.due_at) : Infinity) - (b.due_at ? Date.parse(b.due_at) : Infinity);

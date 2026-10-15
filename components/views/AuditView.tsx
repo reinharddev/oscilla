@@ -1,9 +1,10 @@
 "use client";
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDateTime, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
-import { Page, Panel, td, th } from "./shared";
+import { Page, Panel } from "./shared";
 
 /** One line per recorded change. The trail is written by database triggers, not by the app. */
 export function AuditView() {
@@ -22,24 +23,22 @@ export function AuditView() {
 
   return (
     <Page title={t("audit.title")}>
-      <Panel>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-[13px]">
-            <thead className="border-b border-rule">
-              <tr><th className={th}>{t("audit.when")}</th><th className={th}>{t("audit.who")}</th><th className={th}>{t("audit.what")}</th></tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {audit.length === 0 && <tr><td colSpan={3} className="px-3 py-4 text-xs text-ink/50">{t("audit.empty")}</td></tr>}
-              {audit.map((a) => (
-                <tr key={a.id}>
-                  <td className={`${td} whitespace-nowrap text-xs text-ink/60`}>{fmtDateTime(Date.parse(a.created_at), lang)}</td>
-                  <td className={td}>{a.actor_id ? names[a.actor_id] || a.actor_id.slice(0, 8) : t("audit.system")}</td>
-                  <td className={td}><span className="text-ink/60">{t(`audit.${a.action}` as Key)}</span> {what(a)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Panel flush>
+        <Table className="min-w-[620px]">
+          <TableHeader>
+            <TableRow><TableHead className="pl-4">{t("audit.when")}</TableHead><TableHead>{t("audit.who")}</TableHead><TableHead className="pr-4">{t("audit.what")}</TableHead></TableRow>
+          </TableHeader>
+          <TableBody>
+            {audit.length === 0 && <TableRow><TableCell colSpan={3} className="py-6 text-center text-muted-foreground">{t("audit.empty")}</TableCell></TableRow>}
+            {audit.map((a) => (
+              <TableRow key={a.id}>
+                <TableCell className="whitespace-nowrap pl-4 text-xs text-muted-foreground">{fmtDateTime(Date.parse(a.created_at), lang)}</TableCell>
+                <TableCell>{a.actor_id ? names[a.actor_id] || a.actor_id.slice(0, 8) : t("audit.system")}</TableCell>
+                <TableCell className="pr-4"><span className="text-muted-foreground">{t(`audit.${a.action}` as Key)}</span> {what(a)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </Panel>
     </Page>
   );

@@ -8,6 +8,7 @@ import { TopBar } from "./hud/TopBar";
 import { RightColumn } from "./hud/Panels";
 import { FleetHealth } from "./hud/FleetHealth";
 import { DemoPanel } from "./hud/DemoPanel";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DEFAULT_VIEW, VIEW_LABEL, VIEWS, type ViewId } from "@/lib/roles";
 import { TasksView } from "./views/TasksView";
 import { OverviewView } from "./views/OverviewView";
@@ -30,8 +31,7 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("wt-theme");
-      if (saved === "night" || saved === "day") useStore.getState().setTheme(saved);
-      else if (window.matchMedia("(prefers-color-scheme: dark)").matches) useStore.getState().setTheme("night");
+      useStore.getState().setTheme(saved === "day" ? "day" : "night");
     } catch {}
     useStore.getState().hydrate(initial);
   }, [initial]);
@@ -67,7 +67,7 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
   }, [initial]);
 
   if (!ready) {
-    return <main className="grid h-dvh w-screen place-items-center bg-canvas text-sm text-ink/50">{makeT(initial.locale)("ws.loading")}</main>;
+    return <main className="grid h-dvh w-screen place-items-center bg-background text-sm text-muted-foreground">{makeT(initial.locale)("ws.loading")}</main>;
   }
 
   const allowed = role ? VIEWS[role] : [];
@@ -75,20 +75,19 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
   const tabs = [["fleet", t("tab.fleet")], ["machine", t("tab.machine")], ["agent", t("tab.ask")]] as const;
 
   return (
-    <main className="flex h-dvh w-screen flex-col bg-canvas">
+    <main className="flex h-dvh w-screen flex-col bg-background">
       <TopBar />
-      <nav aria-label={t("tab.sections")} className="scroll-thin flex shrink-0 gap-1 overflow-x-auto border-b border-rule bg-surface px-3">
-        {allowed.map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            aria-current={current === v ? "page" : undefined}
-            className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-xs transition-colors duration-150 ${current === v ? "border-accent font-semibold text-ink" : "border-transparent text-ink/60 hover:text-ink"}`}
-          >
-            {t(VIEW_LABEL[v])}
-          </button>
-        ))}
-      </nav>
+      <Tabs value={current} onValueChange={(v) => setView(v as ViewId)} className="shrink-0 border-b bg-card">
+        <div className="scroll-thin overflow-x-auto px-2 md:px-3">
+          <TabsList variant="line" aria-label={t("tab.sections")} className="h-10 gap-0">
+            {allowed.map((v) => (
+              <TabsTrigger key={v} value={v} className="h-10 flex-none rounded-none px-3 after:bottom-0">
+                {t(VIEW_LABEL[v])}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+      </Tabs>
 
       {current === "machines" ? (
         <>
@@ -97,22 +96,15 @@ export default function Workspace({ initial }: { initial: HydrateInput }) {
               <DemoPanel />
               <FleetHealth />
             </div>
-            <div className={`${tab === "machine" || tab === "agent" ? "block" : "hidden"} scroll-thin min-h-0 w-full overflow-y-auto border-l border-rule bg-surface lg:block lg:w-[400px] lg:shrink-0`}>
+            <div className={`${tab === "machine" || tab === "agent" ? "block" : "hidden"} scroll-thin min-h-0 w-full overflow-y-auto border-l bg-card lg:block lg:w-[420px] lg:shrink-0`}>
               <RightColumn only={tab === "agent" ? "agent" : tab === "machine" ? "machine" : undefined} />
             </div>
           </div>
-          <nav aria-label={t("tab.panel")} className="grid h-12 shrink-0 grid-cols-3 border-t border-rule bg-surface text-xs lg:hidden">
-            {tabs.map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setTab(k)}
-                aria-pressed={tab === k}
-                className={`border-l border-rule first:border-l-0 transition-colors duration-150 ${tab === k ? "bg-ink/10 font-semibold" : "text-ink/60 hover:bg-ink/5"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="shrink-0 border-t bg-card lg:hidden">
+            <TabsList aria-label={t("tab.panel")} className="grid h-11 w-full grid-cols-3 rounded-none bg-transparent p-1">
+              {tabs.map(([k, label]) => <TabsTrigger key={k} value={k}>{label}</TabsTrigger>)}
+            </TabsList>
+          </Tabs>
         </>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">

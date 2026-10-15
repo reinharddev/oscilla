@@ -1,20 +1,23 @@
 import { signOut } from "@/app/login/actions";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Key, Lang } from "@/lib/i18n";
 import { makeT } from "@/lib/i18n";
 
 export default function NoLayout({ name, warehouses, reason, lang }: { name: string; warehouses: string[]; reason: Key; lang: Lang }) {
   const t = makeT(lang);
   return (
-    <main className="grid min-h-dvh place-items-center bg-canvas px-4">
-      <div className="w-full max-w-md rounded-ui border border-rule bg-surface p-5">
-        <h1 className="text-base font-semibold">{t("nolayout.title")}</h1>
-        <p className="mt-2 text-sm text-ink/70">
-          {t("nolayout.hello", { name, reason: t(reason) })}{warehouses.length > 0 && ` (${warehouses.join(", ")})`}
-        </p>
-        <form action={signOut} className="mt-4">
-          <button className="h-8 rounded-ui border border-rule px-3 text-xs transition-colors duration-150 hover:bg-ink/5">{t("common.signOut")}</button>
-        </form>
-      </div>
+    <main className="grid min-h-dvh place-items-center bg-background px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>{t("nolayout.title")}</CardTitle>
+          <CardDescription>{t("nolayout.hello", { name, reason: t(reason) })}{warehouses.length > 0 && ` (${warehouses.join(", ")})`}</CardDescription>
+        </CardHeader>
+        <CardContent />
+        <CardFooter>
+          <form action={signOut}><Button variant="outline" type="submit">{t("common.signOut")}</Button></form>
+        </CardFooter>
+      </Card>
     </main>
   );
 }

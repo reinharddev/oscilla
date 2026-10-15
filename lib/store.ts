@@ -1,11 +1,12 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import type { Theme } from "./theme";
 import { createClient } from "./supabase/client";
 import { MAX_SAMPLES, type AnalyzeSample, type LlmSample } from "./bench";
 import type { Health, HealthStatus, Machine, MachineType } from "./health";
 import type { AssetHealth } from "./server/fleet-health";
 import { statusKey } from "./health";
-import { fmtDateTime, LOCALE_COOKIE, translate, type Key, type Lang, type MsgParams } from "./i18n";
+import { fmtDateTime, LOCALE_COOKIE, renderMsg, makeT, translate, type Key, type Lang, type MsgParams } from "./i18n";
 import { DEFAULT_VIEW, type Role, type ViewId } from "./roles";
 
 export interface Selected { id: string; type: MachineType; label: string }
@@ -162,7 +163,7 @@ async function addEntry(get: Get, set: Set, id: string, kind: JournalEntry["kind
 const idleDemo: DemoState = { open: false, active: false, step: 0, targetId: null, scores: {}, skipped: false };
 
 export const useStore = create<State>((set, get) => ({
-  theme: "day",
+  theme: "night",
   locale: "en",
   selected: null,
   events: [],
@@ -355,7 +356,7 @@ export const useStore = create<State>((set, get) => ({
   },
 
   setTheme: (theme) => {
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "night");
     try { localStorage.setItem("wt-theme", theme); } catch {}
     set({ theme });
   },
@@ -366,5 +367,9 @@ export const useStore = create<State>((set, get) => ({
   },
   select: (selected) => set({ selected }),
 
-  log: (kind, key, params) => set((s) => ({ events: [{ id: eventId++, at: Date.now(), kind, key, params }, ...s.events].slice(0, 30) })),
+  log: (kind, key, params) => {
+    set((s) => ({ events: [{ id: eventId++, at: Date.now(), kind, key, params }, ...s.events].slice(0, 30) }));
+    // Failures are shown right away, not only in the activity list.
+    if (kind === "warn" && /Fail$/.test(key)) toast.error(renderMsg(makeT(get().locale), key, params));
+  },
 }));

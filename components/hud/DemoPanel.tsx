@@ -2,6 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 import { fmtDateTime, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { scoreOf } from "@/lib/health";
@@ -131,46 +136,50 @@ export function DemoPanel() {
   const sc = demo.scores;
   const needsWriter = !writer && (step <= 2 || step === 4 || step === 5);
   const key = (k: string) => `demo.s${step}.${k}` as Key;
+  const shown = Math.min(step, TOTAL);
 
   return (
-    <aside aria-label={t("demo.title")} className="m-3 shrink-0 border border-rule bg-surface">
-      <div className="flex items-center justify-between border-b border-rule px-3 py-2">
-        <div className="text-xs font-semibold">{t("demo.title")} <span className="font-normal text-ink/55">· {t("demo.step", { n: Math.min(step, TOTAL), total: TOTAL })}</span></div>
-        <button onClick={() => useStore.getState().demoReset()} aria-label={t("demo.exit")} title={t("demo.exit")} className="grid h-6 w-6 place-items-center rounded-ui text-ink/60 hover:bg-ink/5"><X size={14} /></button>
-      </div>
-      <div className="h-0.5 bg-ink/10"><div className="h-full bg-accent transition-[width] duration-300" style={{ width: `${(Math.min(step, TOTAL) / TOTAL) * 100}%` }} /></div>
-
-      <div className="space-y-2 px-3 py-3 text-[13px] leading-relaxed">
-        <div className="text-xs text-ink/55">{t("demo.machine", { name: machine.label })}{score !== null && <span className="ml-2 font-semibold text-ink">{score}</span>}</div>
-        <h2 className="text-sm font-semibold">{t(key("title"))}</h2>
-        {step < 7 && <p className="text-ink/75">{t(key("body"), { name: machine.label })}</p>}
-        {result && step < 7 && <p className="text-xs font-medium text-accent" aria-live="polite">{result}</p>}
-        {needsWriter && <p className="border-l-2 border-warn pl-3 text-xs text-ink/75">{t("demo.needsWriter")}</p>}
-        {step === 7 && (
-          <ul className="list-disc space-y-1 pl-4 text-ink/75">
-            <li>{t("demo.s7.found", { before: sc.baseline ?? "–", peak: sc.peak ?? "–" })}</li>
-            <li>{t("demo.s7.copilot")}</li>
-            {demo.skipped ? <li>{t("demo.s7.skipped")}</li> : <><li>{t("demo.s7.wo")}</li><li>{t("demo.s7.after", { after: sc.after ?? "–" })}</li></>}
-          </ul>
-        )}
-        {step === 7 && <p className="text-xs text-ink/55">{t("demo.s7.note")}</p>}
-      </div>
-
-      <div className="flex items-center gap-2 border-t border-rule px-3 py-2">
-        {step < 7 ? (
-          <>
-            <button onClick={() => void advance()} disabled={busy} className="h-8 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90 disabled:opacity-50">
-              {busy ? t("demo.working") : needsWriter ? t("demo.skip") : t("demo.next")}
-            </button>
-            <button onClick={() => setAuto((a) => !a)} aria-pressed={auto} className={`h-8 rounded-ui border px-3 text-xs transition-colors duration-150 ${auto ? "border-ink/40 bg-ink/10" : "border-rule text-ink/60 hover:bg-ink/5"}`}>{t("demo.auto")}</button>
-          </>
-        ) : (
-          <>
-            <button onClick={() => { setAuto(false); useStore.getState().demoPrepare(); }} className="h-8 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas hover:opacity-90">{t("demo.replay")}</button>
-            <button onClick={() => useStore.getState().demoReset()} className="h-8 rounded-ui border border-rule px-3 text-xs text-ink/70 hover:bg-ink/5">{t("demo.exit")}</button>
-          </>
-        )}
-      </div>
+    <aside aria-label={t("demo.title")} className="m-3 shrink-0">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>{t("demo.title")}</CardTitle>
+          <CardDescription>{t("demo.step", { n: shown, total: TOTAL })} · {t("demo.machine", { name: machine.label })}{score !== null && <span className="ml-2 font-semibold text-foreground tabular-nums">{score}</span>}</CardDescription>
+          <CardAction>
+            <Button variant="ghost" size="icon-xs" onClick={() => void useStore.getState().demoReset()} aria-label={t("demo.exit")} title={t("demo.exit")}><X /></Button>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Progress value={(shown / TOTAL) * 100} className="h-1" />
+          <h2 className="text-base font-semibold tracking-tight">{t(key("title"))}</h2>
+          {step < 7 && <p className="text-sm leading-relaxed text-muted-foreground">{t(key("body"), { name: machine.label })}</p>}
+          {result && step < 7 && <p className="text-sm font-medium" aria-live="polite">{result}</p>}
+          {needsWriter && <Alert><AlertDescription>{t("demo.needsWriter")}</AlertDescription></Alert>}
+          {step === 7 && (
+            <ul className="list-disc pl-4 text-sm leading-relaxed">
+              <li>{t("demo.s7.found", { before: sc.baseline ?? "–", peak: sc.peak ?? "–" })}</li>
+              <li>{t("demo.s7.copilot")}</li>
+              {demo.skipped ? <li>{t("demo.s7.skipped")}</li> : <><li>{t("demo.s7.wo")}</li><li>{t("demo.s7.after", { after: sc.after ?? "–" })}</li></>}
+            </ul>
+          )}
+          {step === 7 && <p className="text-xs text-muted-foreground">{t("demo.s7.note")}</p>}
+        </CardContent>
+        <CardFooter className="gap-2">
+          {step < 7 ? (
+            <>
+              <Button onClick={() => void advance()} disabled={busy}>
+                {busy && <Spinner data-icon="inline-start" />}
+                {busy ? t("demo.working") : needsWriter ? t("demo.skip") : t("demo.next")}
+              </Button>
+              <Button variant={auto ? "secondary" : "outline"} aria-pressed={auto} onClick={() => setAuto((a) => !a)}>{t("demo.auto")}</Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={() => { setAuto(false); void useStore.getState().demoPrepare(); }}>{t("demo.replay")}</Button>
+              <Button variant="outline" onClick={() => void useStore.getState().demoReset()}>{t("demo.exit")}</Button>
+            </>
+          )}
+        </CardFooter>
+      </Card>
     </aside>
   );
 }

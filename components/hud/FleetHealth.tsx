@@ -1,18 +1,20 @@
 "use client";
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { scoreOf, statusKey } from "@/lib/health";
 import { fmtDate, type Key } from "@/lib/i18n";
 import { useLang, useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
+import { StatusBadge, STATUS_TEXT } from "@/components/status-badge";
 
-const STATUS_CLASS = { healthy: "text-ok", attention: "text-warn", critical: "text-bad", maintenance: "text-accent" } as const;
 const ORDER = { critical: 0, attention: 1, maintenance: 2, healthy: 3 } as const;
 
 /** Main view: every monitored machine, worst first, with the numbers a planner needs. */
 export function FleetHealth() {
   const t = useT();
   const lang = useLang();
-  const { machines, health, schedules, select, selected, feed, feedAt } = useStore();
+  const { machines, health, schedules, select, selected, feed } = useStore();
 
   const rows = machines
     .map((m) => {
@@ -35,56 +37,62 @@ export function FleetHealth() {
 
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label={t("fh.title")}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-rule px-4 py-3">
-        <h1 className="text-sm font-semibold">{t("fh.title")}</h1>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b px-4 py-3">
+        <h1 className="text-xl font-semibold tracking-tight">{t("fh.title")}</h1>
+        <div className="flex flex-wrap items-center gap-2">
           {summary.map((s) => (
-            <span key={s} className="text-ink/60">
-              <span className={`mr-1.5 text-base font-semibold ${STATUS_CLASS[s]}`}>{count(s)}</span>
-              {t(statusKey(s))}
-            </span>
+            <StatusBadge key={s} status={s}>
+              <span className="font-semibold tabular-nums">{count(s)}</span> {t(statusKey(s))}
+            </StatusBadge>
           ))}
-          <span className={feed === "error" ? "text-warn" : "text-ink/45"}>{feed === "error" ? t("fh.feedError") : latest ? t("fh.updated", { ago: ago(latest) }) : t("fh.noData")}</span>
-          {rows.some((r) => r.h.source === "simulator") && <span className="text-ink/45">{t("fh.simulated")}</span>}
         </div>
       </div>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[620px] text-left text-[13px]">
-          <thead className="sticky top-0 bg-surface text-xs text-ink/50">
-            <tr className="border-b border-rule">
-              <th scope="col" className="px-4 py-2 font-normal">{t("fh.machine")}</th>
-              <th scope="col" className="px-2 py-2 font-normal">{t("fh.type")}</th>
-              <th scope="col" className="px-2 py-2 font-normal">{t("fh.status")}</th>
-              <th scope="col" className="px-2 py-2 text-right font-normal">{t("fh.score")}</th>
-              <th scope="col" className="px-2 py-2 text-right font-normal">{t("fh.life")}</th>
-              <th scope="col" className="px-4 py-2 text-right font-normal">{t("fh.service")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule">
+        <Table className="min-w-[640px]">
+          <TableHeader className="sticky top-0 bg-card">
+            <TableRow>
+              <TableHead className="pl-4">{t("fh.machine")}</TableHead>
+              <TableHead>{t("fh.type")}</TableHead>
+              <TableHead>{t("fh.status")}</TableHead>
+              <TableHead className="text-right">{t("fh.score")}</TableHead>
+              <TableHead className="text-right">{t("fh.life")}</TableHead>
+              <TableHead className="pr-4 text-right">{t("fh.service")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map(({ m, h, sch, status, score }) => {
               const overdue = sch.due !== null && sch.due < Date.now() && !sch.inProgress;
               const days = Math.floor((Date.now() - (sch.lastDone ?? 0)) / 86_400_000);
               return (
-                <tr key={m.id} onClick={() => select(m)} className={`cursor-pointer transition-colors duration-150 ${selected?.id === m.id ? "bg-ink/10" : "hover:bg-ink/5"}`}>
-                  <td className="px-4 py-2">
+                <TableRow key={m.id} onClick={() => select(m)} data-state={selected?.id === m.id ? "selected" : undefined} className="cursor-pointer">
+                  <TableCell className="pl-4">
                     <button className="text-left font-medium outline-none focus-visible:underline" onClick={(e) => { e.stopPropagation(); select(m); }}>{m.label}</button>
-                    <div className="text-xs text-ink/45">{m.serial}</div>
-                  </td>
-                  <td className="px-2 py-2 text-ink/70">{t(`type.${m.type}` as Key)}</td>
-                  <td className={`px-2 py-2 ${STATUS_CLASS[status]}`}>{t(statusKey(status))}</td>
-                  <td className={`px-2 py-2 text-right font-semibold tabular-nums ${STATUS_CLASS[status]}`}>{score}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-ink/70">{h.rulDays === null ? "–" : h.rulDays < 1 ? t("fh.underDay") : t("fh.days", { n: Math.round(h.rulDays) })}</td>
-                  <td className={`px-4 py-2 text-right ${overdue ? "text-bad" : "text-ink/70"}`}>
+                    <div className="text-xs text-muted-foreground">{m.serial}</div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{t(`type.${m.type}` as Key)}</TableCell>
+                  <TableCell><StatusBadge status={status}>{t(statusKey(status))}</StatusBadge></TableCell>
+                  <TableCell className={cn("text-right text-base font-semibold tabular-nums", STATUS_TEXT[status])}>{score}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {h.rulDays === null ? "–" : h.rulDays < 1 ? t("fh.underDay") : t("fh.days", { n: Math.round(h.rulDays) })}
+                  </TableCell>
+                  <TableCell className={cn("pr-4 text-right", overdue ? "font-medium text-destructive" : "text-muted-foreground")}>
                     {sch.inProgress ? t("maint.running") : sch.due !== null ? (overdue ? t("maint.late") : fmtDate(sch.due, lang, { day: "numeric", month: "short" })) : sch.lastDone ? t("fh.lastAgo", { n: days }) : "–"}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
-      <p className="border-t border-rule px-4 py-2 text-xs text-ink/45">{t("fh.legend")}</p>
+
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t px-4 py-2 text-xs text-muted-foreground">
+        <span>{t("fh.legend")}</span>
+        <span className={feed === "error" ? "text-warning" : undefined}>
+          {feed === "error" ? t("fh.feedError") : latest ? t("fh.updated", { ago: ago(latest) }) : t("fh.noData")}
+          {rows.some((r) => r.h.source === "simulator") && ` · ${t("fh.simulated")}`}
+        </span>
+      </div>
     </section>
   );
 }

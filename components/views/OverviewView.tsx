@@ -1,13 +1,15 @@
 "use client";
 
-import { useT } from "@/lib/i18n/use-t";
-import { scoreOf, statusKey } from "@/lib/health";
-import { useStore } from "@/lib/store";
-import { isLead } from "@/lib/roles";
+import { Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { StatusBadge } from "@/components/status-badge";
 import { Overview, WorkOrders } from "@/components/hud/Panels";
+import { scoreOf, statusKey } from "@/lib/health";
+import { useT } from "@/lib/i18n/use-t";
+import { useStore } from "@/lib/store";
 import { Page, Panel, useOpenMachine } from "./shared";
-
-const STATUS_CLASS = { healthy: "text-ok", attention: "text-warn", critical: "text-bad" } as const;
 
 /** Warehouse overview for managers, admins and viewers. Viewers get the same facts without actions. */
 export function OverviewView() {
@@ -21,26 +23,31 @@ export function OverviewView() {
 
   return (
     <Page title={t("view.overview")} aside={auth?.warehouseName}>
-      {!isLead(auth?.role) && auth?.role === "viewer" && <p className="mb-4 border-l-2 border-ink/30 pl-3 text-xs text-ink/65">{t("ov2.readOnly")}</p>}
-      <div className="mb-5 border border-rule bg-surface"><Overview /></div>
-      <Panel title={t("ov2.attention")} aside={String(attention.length)}>
+      {auth?.role === "viewer" && (
+        <Alert><Info /><AlertDescription>{t("ov2.readOnly")}</AlertDescription></Alert>
+      )}
+      <Overview />
+      <Panel title={t("ov2.attention")} description={String(attention.length)}>
         {attention.length === 0 ? (
-          <p className="px-4 py-3 text-xs text-ink/50">{t("ov2.none")}</p>
+          <p className="text-sm text-muted-foreground">{t("ov2.none")}</p>
         ) : (
-          <ul className="divide-y divide-rule">
-            {attention.map(({ m, h }) => (
+          <ul className="flex flex-col">
+            {attention.map(({ m, h }, i) => (
               <li key={m.id}>
-                <button onClick={() => open(m)} className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 px-4 py-2.5 text-left text-sm hover:bg-ink/5">
-                  <span>{m.label}<span className="ml-2 text-xs text-ink/45">{m.serial}</span></span>
-                  <span className={`text-xs ${STATUS_CLASS[h.status]}`}>{t(statusKey(h.status))}</span>
-                  <span className={`w-8 text-right font-semibold tabular-nums ${STATUS_CLASS[h.status]}`}>{scoreOf(h)}</span>
-                </button>
+                {i > 0 && <Separator />}
+                <Button variant="ghost" className="h-auto w-full justify-between rounded-none px-1 py-2.5 font-normal" onClick={() => open(m)}>
+                  <span><span className="font-medium">{m.label}</span><span className="ml-2 text-xs text-muted-foreground">{m.serial}</span></span>
+                  <span className="flex items-center gap-2">
+                    <StatusBadge status={h.status}>{t(statusKey(h.status))}</StatusBadge>
+                    <span className="w-8 text-right font-semibold tabular-nums">{scoreOf(h)}</span>
+                  </span>
+                </Button>
               </li>
             ))}
           </ul>
         )}
       </Panel>
-      <div className="border border-rule bg-surface"><WorkOrders /></div>
+      <WorkOrders />
     </Page>
   );
 }

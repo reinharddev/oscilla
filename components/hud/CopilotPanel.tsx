@@ -2,11 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import type { CopilotResult } from "@/lib/copilot/types";
 import type { Key } from "@/lib/i18n";
 import { useT } from "@/lib/i18n/use-t";
 import { useStore } from "@/lib/store";
-import { Section } from "./ui";
 
 type Reply = CopilotResult & { machine: string; llmConfigured: boolean; endpoint?: string; cached?: boolean };
 
@@ -54,115 +62,133 @@ export function CopilotPanel({ machineId, canAct }: { machineId: string; canAct:
   const source = reply?.sources.find((s) => s.id === open);
   const chips = (ids: string[]) =>
     ids.map((id) => (
-      <button key={id} onClick={() => setOpen(open === id ? null : id)} className={`ml-1.5 rounded-ui border px-1 text-[11px] transition-colors duration-150 ${open === id ? "border-accent text-accent" : "border-rule text-ink/60 hover:bg-ink/5"}`}>
+      <Button key={id} variant={open === id ? "secondary" : "outline"} size="xs" className="ml-1.5 align-middle" onClick={() => setOpen(open === id ? null : id)}>
         {id}
-      </button>
+      </Button>
     ));
   const badge = reply ? (reply.mode === "llm" ? t("copilot.badge.llm") : reply.llmRejected ? t("copilot.badge.rejected") : t("copilot.badge.template")) : undefined;
+  const meta =
+    reply && (reply.mode === "llm" || reply.llmRejected)
+      ? `${reply.llmRejected ? `${t("copilot.rejectedPrefix")} · ` : ""}${reply.model} · ${t("copilot.seconds", { n: (reply.latencyMs / 1000).toFixed(1) })}${reply.usage?.completionTokens ? ` · ${t("copilot.tokens", { n: (reply.usage.promptTokens ?? 0) + reply.usage.completionTokens })}` : ""}`
+      : t("copilot.templateNote");
 
   return (
-    <Section title={t("copilot.title")} aside={badge}>
-      {!reply && <p className="mb-3 text-xs text-ink/60">{t("copilot.intro")}</p>}
-      <button
-        onClick={ask}
-        disabled={busy}
-        className="inline-flex h-8 items-center gap-1.5 rounded-ui border border-rule px-3 text-xs transition-colors duration-150 hover:bg-ink/5 disabled:opacity-50"
-      >
-        <Sparkles size={13} /> {busy ? t("copilot.running") : reply ? t("copilot.again") : t("copilot.ask")}
-      </button>
-      {error && <p role="alert" className="mt-2 text-xs text-bad">{error}</p>}
-
-      {reply && (
-        <div className="mt-4 space-y-4 text-[13px] leading-relaxed">
-          {reply.review.required && (
-            <div className="border-l-2 border-warn pl-3">
-              <div className="text-xs font-semibold text-warn">{t("copilot.review")}</div>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-ink/75">
-                {reply.review.reasons.map((r) => <li key={r}>{r}</li>)}
-              </ul>
-            </div>
-          )}
-
-          <p>{reply.summary}</p>
-          {reply.likelyCause && (
-            <div>
-              <div className="text-xs text-ink/55">{t("copilot.cause")}</div>
-              <p>{reply.likelyCause}</p>
-            </div>
-          )}
-
-          <div>
-            <div className="text-xs text-ink/55">{t("copilot.recs")}</div>
-            <ol className="mt-1 divide-y divide-rule border-y border-rule">
-              {reply.recommendations.map((r, i) => (
-                <li key={i} className="py-2">
-                  <span className="mr-2 text-xs font-semibold text-ink/70">{t(`urgency.${r.urgency}` as Key)}</span>
-                  {r.action.replace(/\s*\[(?:M|J)\d+\]/g, "")}
-                  {chips(r.citations)}
-                </li>
-              ))}
-            </ol>
-          </div>
-
-          {source && (
-            <div className="rounded-ui border border-rule p-3 text-xs">
-              <div className="font-semibold">{source.title}</div>
-              <div className="text-ink/55">{source.detail}</div>
-              <p className="mt-2 text-ink/80">{source.text}</p>
-              {source.sample && <p className="mt-2 text-ink/45">{t("copilot.sampleNote")}</p>}
-            </div>
-          )}
-
-          <div className="text-xs text-ink/60">
-            {t("copilot.confidence")} <span className="font-semibold text-ink">{t(`level.${reply.confidence.level}` as Key)}</span> {t("copilot.notCalibrated")}
-            <details className="mt-1">
-              <summary className="cursor-pointer text-ink/50">{t("copilot.basis")}</summary>
-              <ul className="mt-1 list-disc space-y-0.5 pl-4">{reply.confidence.basis.map((b) => <li key={b}>{b}</li>)}</ul>
-            </details>
-          </div>
-
-          {reply.rejected && (
-            <details className="text-xs text-ink/60">
-              <summary className="cursor-pointer text-ink/50">{t("copilot.showRejected")}</summary>
-              <div className="mt-2 border-l-2 border-rule pl-3">
-                <p>{reply.rejected.summary}</p>
-                {reply.rejected.likelyCause && <p className="mt-1">{reply.rejected.likelyCause}</p>}
-                <ul className="mt-1 list-disc space-y-0.5 pl-4">{reply.rejected.recommendations.map((r, i) => <li key={i}>{r.action}</li>)}</ul>
-              </div>
-            </details>
-          )}
-
-          <div className="text-xs text-ink/45">
-            {reply.mode === "llm" || reply.llmRejected
-              ? `${reply.llmRejected ? `${t("copilot.rejectedPrefix")} · ` : ""}${reply.model} · ${t("copilot.seconds", { n: (reply.latencyMs / 1000).toFixed(1) })}${reply.usage?.completionTokens ? ` · ${t("copilot.tokens", { n: (reply.usage.promptTokens ?? 0) + reply.usage.completionTokens })}` : ""}`
-              : t("copilot.templateNote")}
-          </div>
-
-          {canAct && (
-            <div className="space-y-2 border-t border-rule pt-3">
-              {scheduled ? (
-                <p className="text-xs text-ok">{t("copilot.created")}</p>
-              ) : (
-                <div className="flex gap-2">
-                  <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} aria-label={t("mach.whenAria")} className="h-8 min-w-0 flex-1 rounded-ui border border-rule bg-surface px-2 text-xs outline-none focus:border-accent" />
-                  <button
-                    onClick={async () => {
-                      await scheduleMaintenance(machineId, new Date(due).getTime(), {
-                        summary: `${reply.summary} ${reply.recommendations[0]?.action ?? ""}`.replace(/\s*\[(?:M|J)\d+\]/g, ""),
-                        aiDiagnosis: { mode: reply.mode, model: reply.model, summary: reply.summary, likelyCause: reply.likelyCause, recommendations: reply.recommendations, confidence: reply.confidence, review: reply.review, at: new Date().toISOString() },
-                      });
-                      setScheduled(true);
-                    }}
-                    className="h-8 rounded-ui bg-accent px-3 text-xs font-semibold text-canvas transition-opacity duration-150 hover:opacity-90"
-                  >
-                    {t("copilot.scheduleFrom")}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>{t("copilot.title")}</CardTitle>
+        {badge && <CardDescription><Badge variant="secondary">{badge}</Badge></CardDescription>}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {!reply && <p className="text-sm text-muted-foreground">{t("copilot.intro")}</p>}
+        <div>
+          <Button variant="outline" onClick={ask} disabled={busy}>
+            {busy ? <Spinner data-icon="inline-start" /> : <Sparkles data-icon="inline-start" />}
+            {busy ? t("copilot.running") : reply ? t("copilot.again") : t("copilot.ask")}
+          </Button>
         </div>
-      )}
-    </Section>
+        {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+
+        {reply && (
+          <div className="flex flex-col gap-4 text-sm leading-relaxed">
+            {reply.review.required && (
+              <Alert className="border-warning/40 bg-warning/10 text-foreground">
+                <AlertTitle className="text-warning">{t("copilot.review")}</AlertTitle>
+                <AlertDescription>
+                  <ul className="mt-1 list-disc pl-4">{reply.review.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <p>{reply.summary}</p>
+            {reply.likelyCause && (
+              <div>
+                <div className="text-xs text-muted-foreground">{t("copilot.cause")}</div>
+                <p>{reply.likelyCause}</p>
+              </div>
+            )}
+
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground">{t("copilot.recs")}</div>
+              <ol className="flex flex-col">
+                {reply.recommendations.map((r, i) => (
+                  <li key={i}>
+                    {i > 0 && <Separator />}
+                    <div className="py-2">
+                      <Badge variant="outline" className="mr-2">{t(`urgency.${r.urgency}` as Key)}</Badge>
+                      {r.action.replace(/\s*\[(?:M|J)\d+\]/g, "")}
+                      {chips(r.citations)}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {source && (
+              <Alert>
+                <AlertTitle>{source.title}</AlertTitle>
+                <AlertDescription>
+                  <span className="text-xs">{source.detail}</span>
+                  <p className="mt-2 text-foreground">{source.text}</p>
+                  {source.sample && <p className="mt-2 text-xs">{t("copilot.sampleNote")}</p>}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Collapsible>
+              <p className="text-xs text-muted-foreground">
+                {t("copilot.confidence")} <span className="font-semibold text-foreground">{t(`level.${reply.confidence.level}` as Key)}</span> {t("copilot.notCalibrated")}
+              </p>
+              <CollapsibleTrigger asChild>
+                <Button variant="link" size="xs" className="h-auto p-0 text-xs text-muted-foreground">{t("copilot.basis")}</Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">{reply.confidence.basis.map((b) => <li key={b}>{b}</li>)}</ul>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {reply.rejected && (
+              <Collapsible>
+                <CollapsibleTrigger asChild>
+                  <Button variant="link" size="xs" className="h-auto p-0 text-xs text-muted-foreground">{t("copilot.showRejected")}</Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 border-l pl-3 text-xs text-muted-foreground">
+                    <p>{reply.rejected.summary}</p>
+                    {reply.rejected.likelyCause && <p className="mt-1">{reply.rejected.likelyCause}</p>}
+                    <ul className="mt-1 list-disc pl-4">{reply.rejected.recommendations.map((r, i) => <li key={i}>{r.action}</li>)}</ul>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
+
+            <p className="text-xs text-muted-foreground">{meta}</p>
+
+            {canAct && (
+              <>
+                <Separator />
+                {scheduled ? (
+                  <p className={cn("text-sm font-medium text-success")}>{t("copilot.created")}</p>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} aria-label={t("mach.whenAria")} />
+                    <Button
+                      onClick={async () => {
+                        await scheduleMaintenance(machineId, new Date(due).getTime(), {
+                          summary: `${reply.summary} ${reply.recommendations[0]?.action ?? ""}`.replace(/\s*\[(?:M|J)\d+\]/g, ""),
+                          aiDiagnosis: { mode: reply.mode, model: reply.model, summary: reply.summary, likelyCause: reply.likelyCause, recommendations: reply.recommendations, confidence: reply.confidence, review: reply.review, at: new Date().toISOString() },
+                        });
+                        setScheduled(true);
+                      }}
+                    >
+                      {t("copilot.scheduleFrom")}
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

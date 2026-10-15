@@ -1,10 +1,12 @@
 "use client";
 
-import { useT } from "@/lib/i18n/use-t";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { Key } from "@/lib/i18n";
+import { useT } from "@/lib/i18n/use-t";
 import type { Role } from "@/lib/roles";
 import { useStore } from "@/lib/store";
-import { Page, Panel, td, th } from "./shared";
+import { Page, Panel } from "./shared";
 
 const ROLES: Role[] = ["admin", "manager", "technician", "viewer"];
 
@@ -16,40 +18,35 @@ export function PeopleView() {
 
   return (
     <Page title={t("people.title")} aside={auth?.orgName}>
-      <Panel>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-[13px]">
-            <thead className="border-b border-rule">
-              <tr><th className={th}>{t("people.name")}</th><th className={th}>{t("people.scope")}</th><th className={th}>{t("people.role")}</th></tr>
-            </thead>
-            <tbody className="divide-y divide-rule">
-              {members.map((m) => {
-                const me = m.user_id === auth?.userId;
-                // Administrators are organization-wide, so a warehouse-scoped member cannot be made one.
-                const options = m.warehouse_id === null ? ROLES : ROLES.filter((r) => r !== "admin");
-                return (
-                  <tr key={m.id}>
-                    <td className={td}>{m.full_name || m.user_id.slice(0, 8)}{me && <span className="ml-2 text-xs text-ink/45">({t("people.you")})</span>}</td>
-                    <td className={`${td} text-ink/70`}>{scope(m.warehouse_id)}</td>
-                    <td className={td}>
-                      <select
-                        aria-label={t("people.role")}
-                        value={m.role}
-                        disabled={me}
-                        onChange={(e) => setMemberRole(m.id, e.target.value as Role)}
-                        className="h-8 rounded-ui border border-rule bg-surface px-2 text-xs outline-none focus:border-accent disabled:opacity-60"
-                      >
-                        {options.map((r) => <option key={r} value={r}>{t(`role.${r}` as Key)}</option>)}
-                      </select>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <Panel flush>
+        <Table className="min-w-[560px]">
+          <TableHeader>
+            <TableRow><TableHead className="pl-4">{t("people.name")}</TableHead><TableHead>{t("people.scope")}</TableHead><TableHead className="pr-4">{t("people.role")}</TableHead></TableRow>
+          </TableHeader>
+          <TableBody>
+            {members.map((m) => {
+              const me = m.user_id === auth?.userId;
+              // Administrators are organization-wide, so a warehouse-scoped member cannot be made one.
+              const options = m.warehouse_id === null ? ROLES : ROLES.filter((r) => r !== "admin");
+              return (
+                <TableRow key={m.id}>
+                  <TableCell className="pl-4">{m.full_name || m.user_id.slice(0, 8)}{me && <span className="ml-2 text-xs text-muted-foreground">({t("people.you")})</span>}</TableCell>
+                  <TableCell className="text-muted-foreground">{scope(m.warehouse_id)}</TableCell>
+                  <TableCell className="pr-4">
+                    <Select value={m.role} disabled={me} onValueChange={(v) => void setMemberRole(m.id, v as Role)}>
+                      <SelectTrigger size="sm" className="w-40" aria-label={t("people.role")}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>{options.map((r) => <SelectItem key={r} value={r}>{t(`role.${r}` as Key)}</SelectItem>)}</SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </Panel>
-      <p className="text-xs text-ink/55">{t("people.note")}</p>
+      <p className="text-sm text-muted-foreground">{t("people.note")}</p>
     </Page>
   );
 }
